@@ -5,3 +5,6 @@
 #include <iostream>
 #include<string>
 #include <vector>
+#include <stdexcept>
+
+using gridEntity = std::vector<std::vector<double>>;

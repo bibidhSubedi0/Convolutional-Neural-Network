@@ -131,11 +131,15 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="all_includes.hpp" />
+    <ClInclude Include="ConvolutionLayers.hpp" />
     <ClInclude Include="ImageInput.hpp" />
+    <ClInclude Include="Matrix.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="ConvolutionLayers.cpp" />
     <ClCompile Include="ImageInput.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="Matrix.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

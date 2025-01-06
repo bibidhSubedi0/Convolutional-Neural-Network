@@ -35,9 +35,9 @@ void ImageInput::showImage()
     cv::Mat largeImage;
 
     // Show image by magnifiying 10 times
-    // resize(this->image, largeImage, cv::Size(this->image.rows * 10, this->image.cols * 10), 0, 0, cv::INTER_NEAREST);
-    //cv::imshow("Image", largeImage);
-    cv::imshow("Image", this->image);
+    resize(this->image, largeImage, cv::Size(this->image.rows * 10, this->image.cols * 10), 0, 0, cv::INTER_NEAREST);
+    cv::imshow("Image", largeImage);
+    // cv::imshow("Image", this->image);
     cv::waitKey(0);
 }
 

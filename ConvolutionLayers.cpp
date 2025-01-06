@@ -51,26 +51,44 @@ void ConvolutionLayers::apply_filter(gridEntity filt,int stride=1)
 {
     // Write the convlution for filter and image and return the un-activaed feature map
     // fuck this is going to be long
-    int filter_size = filt.size();
     gridEntity f_map = Matrix::convolute(raw_image,filt);
     this->feature_maps.push_back(f_map);
 }
 
-std::vector<gridEntity> ConvolutionLayers::getFeatureMaps()
-{
-    return this->feature_maps;
-}
+
 
 void ConvolutionLayers::activate_feature_maps_using_RELU()
 {
-
-    for(gridEntity fm:this->feature_maps)
+    for(int xx=0;xx<this->feature_maps.size();xx++)
     {
-        for (int i = 0; i < this->feature_maps.size(); i++)
+        for (int i = 0; i < this->feature_maps.at(xx).size(); i++)
         {
-            for (int j = 0; j < this->feature_maps[0].size(); j++)
+            for (int j = 0;j< this->feature_maps.at(xx).at(0).size(); j++)
             {
-                fm.at(i).at(j) = fm.at(i).at(j) > 0 ? fm.at(i).at(j) : 0;
+                if (this->feature_maps.at(xx).at(i).at(j) < 0)
+                {
+                    this->feature_maps.at(xx).at(i).at(j) = 0;
+                }
+
+            }
+        }
+    }
+}
+
+
+void ConvolutionLayers::apply_normalaization()
+{
+    // idk if this will work but fuck it
+    int min = 0;
+    int max = 800;
+
+    for (int xx = 0; xx < this->feature_maps.size(); xx++)
+    {
+        for (int i = 0; i < this->feature_maps.at(xx).size(); i++)
+        {
+            for (int j = 0; j < this->feature_maps.at(xx).at(0).size(); j++)
+            {
+                this->feature_maps.at(xx).at(i).at(j) = (this->feature_maps.at(xx).at(i).at(j) - min) / (max - min);
             }
         }
     }
@@ -78,9 +96,68 @@ void ConvolutionLayers::activate_feature_maps_using_RELU()
 
 
 
+void ConvolutionLayers::apply_pooling(gridEntity feature, int stride = 2)
+{
+    // define kernal
+    int poolHeight = 2;
+    int poolWidth = 2;
+
+    // get dimentions of the feature_map
+    int inputHeight = feature.size();
+    int inputWidth = feature[0].size();
+
+
+    gridEntity pooled;
+    // Perform pooling
+
+    for (int i = 0; i < inputHeight; i+=stride)
+    {
+
+        std::vector<double> pool_row;
+        for (int j = 0; j < inputWidth; j+=stride)
+        {
+           
+            double max_val = 0;
+            for (int kh = i; kh < i+poolHeight; kh++)
+            {
+                for (int kw = j; kw < j+poolWidth; kw++)
+                {
+                    
+                    if ((kh < inputHeight) && (kw < inputWidth))
+                    {
+                        // std::cout << "curr x: " << kh << "  curry y: " << kw << "    :    " << feature.at(kh).at(kw) << std::endl;
+                        max_val = feature.at(kh).at(kw) > max_val ? feature.at(kh).at(kw) : max_val;
+                    }
+                }
+            }
+
+            std::cout << max_val << std::endl;
+            pool_row.push_back(max_val);
+
+        }
+        pooled.push_back(pool_row);
+    }
+   
+
+
+    this->pool_maps.push_back(pooled);
+}
 
 
 
+
+
+
+
+std::vector<gridEntity> ConvolutionLayers::getFeatureMaps()
+{
+    return this->feature_maps;
+}
+
+std::vector<gridEntity> ConvolutionLayers::getPoolMaps()
+{
+    return this->pool_maps;
+}
 
 
 

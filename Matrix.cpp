@@ -32,6 +32,9 @@ gridEntity Matrix::convolute(gridEntity input_image_section, gridEntity filter)
             }
 
             // Store result in the output grid
+           
+
+            // I can probaly just apply RELU Here !?????
             output[i][j] = sum;
         }
     }

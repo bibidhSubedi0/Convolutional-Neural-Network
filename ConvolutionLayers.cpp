@@ -34,29 +34,10 @@ ConvolutionLayers::ConvolutionLayers(gridEntity main_image) : raw_image(main_ima
         {-1, -1, 0, 1, 1}  
     };
 
-    // Purpose: Detect circular or blob-like features
-    gridEntity filter4 = {
-        {0, 0, 1, 0, 0},
-        {0, 1, 1, 1, 0},
-        {1, 1, 1, 1, 1},
-        {0, 1, 1, 1, 0},
-        {0, 0, 1, 0, 0}  
-    };
-
-    // Purpose: Detect star-like or cross patterns
-    gridEntity filter5 = {
-        {1, 0, 0, 0, 1},
-        {0, 1, 0, 1, 0},
-        {0, 0, 1, 0, 0},
-        {0, 1, 0, 1, 0},
-        {1, 0, 0, 0, 1}  
-    };
 
     this->filters.push_back(filter1);
     this->filters.push_back(filter2);
     this->filters.push_back(filter3);
-    this->filters.push_back(filter4);
-    this->filters.push_back(filter5);
 
 }
 
@@ -80,8 +61,20 @@ std::vector<gridEntity> ConvolutionLayers::getFeatureMaps()
     return this->feature_maps;
 }
 
+void ConvolutionLayers::activate_feature_maps_using_RELU()
+{
 
-
+    for(gridEntity fm:this->feature_maps)
+    {
+        for (int i = 0; i < this->feature_maps.size(); i++)
+        {
+            for (int j = 0; j < this->feature_maps[0].size(); j++)
+            {
+                fm.at(i).at(j) = fm.at(i).at(j) > 0 ? fm.at(i).at(j) : 0;
+            }
+        }
+    }
+}
 
 
 

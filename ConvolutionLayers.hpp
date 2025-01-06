@@ -30,5 +30,8 @@ public:
 	// takes a filter and stride
 	void apply_filter(gridEntity,int);
 
+	// apply the activation for each feature map
+	void activate_feature_maps_using_RELU();
+
 };
 

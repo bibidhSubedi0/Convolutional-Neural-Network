@@ -9,78 +9,88 @@ int main()
 	// Get matrixified pixel values for the images
 	std::vector<std::vector<double>> pixelVals = img->getMatrixifiedPixelValues();
 
-
-
+	/*-----------------------------New Way-------------------------------------*/
 	// Start the first convolution Layer
-
-	// Apply filters for 1st convlolution layer
 	ConvolutionLayers l1(pixelVals);
 
-	// ATTENTIONNNNNNNNNNNNNNNNNn -> 3 here is no. of filers, very bad code i know, fuck off
-	for (int i = 0; i < 1; i++)
+	for (int filter_count = 0; filter_count < l1.get_all_predefined_filter().size(); filter_count++)
 	{
-		l1.apply_filter(l1.get_filter(i), 1);
+		gridEntity f_map=  l1.apply_filter_universal(l1.get_raw_input_image(), l1.get_all_predefined_filter().at(filter_count), 1);
+		l1.get_feature_map().push_back(f_map);
 	}
 
+	// Activate feature maps -> NOT WORKING
+	for(gridEntity &f_map: l1.get_feature_map())
+	{
+		l1.activate_feature_map_using_RELU_universal(f_map);
+	}
 
+	// May need to verify activation
 
-	l1.activate_feature_maps_using_RELU();
+	// Normaile the feature map
+	for (gridEntity &f_map : l1.get_feature_map())
+	{
+		l1.apply_normalaization_universal(f_map);
+	}
 
-
-	// SO it seems activation is working but i also need to normaize the data to get pixel value between 0 and 255
-	l1.apply_normalaization();
-
-
-
-	// Result
-	for (gridEntity feature_map : l1.getFeatureMaps())
+	for (gridEntity feature_map : l1.get_feature_map())
 	{
 		ImageInput i(feature_map);
 		i.showImage();
 	}
 
-
 	// Apply max pooling
-	for (int i = 0; i < 1; i++)
+	for (int i = 0; i < l1.get_feature_map().size(); i++)
 	{
-		l1.apply_pooling(l1.getFeatureMaps().at(i), 2);
+		gridEntity pMap = l1.apply_pooling_univeral(l1.get_feature_map().at(i), 2);
+		l1.get_pool_map().push_back(pMap);
 	}
 
 	// print pooled maps
-	for (gridEntity pool : l1.getPoolMaps())
+	for (gridEntity pool : l1.get_pool_map())
 	{
 		ImageInput i(pool);
 		i.showImage();
 	}
 
 
+	// ------------------------------------------------------------------
+	// Put these final pool maps into the input channel for next layer
+	// -----------------------------------------------------------------
 
+
+
+
+	// ------------------------------------------------------------------
+	// Apply the 'volumetricEntity training_filters' designated to the second convolution layer and get the 'volumetricEntity ouput_features;'
+	// -----------------------------------------------------------------
+
+
+
+	// ------------------------------------------------------------------
+	// Apply activation and normalaization to the output features
+	// -----------------------------------------------------------------
+
+
+
+	// ------------------------------------------------------------------
+	// Apply pooling to the output features
+	// -----------------------------------------------------------------
 	
+
+
+
+	// ------------------------------------------------------------------
+	// Flatten the pooled layer
+	// -----------------------------------------------------------------
+
+
+
+
+
+	// ------------------------------------------------------------------
+	// Feed into deep neural network 
+	// -----------------------------------------------------------------
 }
 
-/*
 
-
-	
-	gridEntity nums = {
-	{1, 2, 3, 4, 5},
-	{6, 7, 8, 9, 10},
-	{11, 12, 13, 14, 15},
-	{16, 17, 18, 19, 20},
-	{21, 22, 23, 24, 25}
-	};
-
-	ConvolutionLayers l1(nums);
-	l1.apply_pooling(nums,2);
-
-
-	for (int i = 0; i < l1.getPoolMaps().at(0).size(); i++)
-	{
-		for (int j = 0; j < l1.getPoolMaps().at(0).at(0).size(); j++)
-		{
-			std::cout << l1.getPoolMaps().at(0).at(i).at(j) << " ";
-		}
-		std::cout<<"\n";
-	}
-
-*/

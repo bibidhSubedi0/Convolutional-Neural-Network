@@ -1,6 +1,6 @@
 #include "Matrix.hpp"
 
-gridEntity Matrix::convolute(gridEntity input_image_section, gridEntity filter)
+gridEntity Matrix::convolute(gridEntity input_image_section, gridEntity filter, int stride)
 {
     int inputHeight = input_image_section.size();
     int inputWidth = input_image_section[0].size();

@@ -3,6 +3,6 @@
 class Matrix
 {
 public:
-	static gridEntity convolute(gridEntity, gridEntity);
+	static gridEntity convolute(gridEntity, gridEntity, int);
 };
 

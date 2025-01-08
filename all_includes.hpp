@@ -8,3 +8,4 @@
 #include <stdexcept>
 
 using gridEntity = std::vector<std::vector<double>>;
+using volumetricEntity = std::vector<std::vector<std::vector<double>>>;

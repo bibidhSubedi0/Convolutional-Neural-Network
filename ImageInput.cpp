@@ -19,7 +19,7 @@ ImageInput::ImageInput(std::vector<std::vector<double>> raw_pixels)
         }
     }
 
-    this->matrixifyPixelValues();
+    this->pixel_values = raw_pixels;
 
 }
 
@@ -41,16 +41,23 @@ void ImageInput::showImage()
     cv::waitKey(0);
 }
 
-void ImageInput::matrixifyPixelValues()
-{
+void ImageInput::matrixifyPixelValues() {
+    this->pixel_values.clear();
+
+    if (this->image.type() != CV_8UC1) {
+        std::cerr << "Warning: Image is not grayscale. Converting to grayscale.\n";
+        cv::cvtColor(this->image, this->image, cv::COLOR_BGR2GRAY);
+    }
+
     for (int i = 0; i < this->image.rows; ++i) {
         std::vector<double> temp;
         for (int j = 0; j < this->image.cols; ++j) {
-            temp.push_back((int)this->image.at<uchar>(i, j));
+            temp.push_back(this->image.at<uchar>(i, j) / 255.0); // Normalized pixel values
         }
         this->pixel_values.push_back(temp);
     }
 }
+
 
 std::vector<std::vector<double>> ImageInput::getMatrixifiedPixelValues()
 {

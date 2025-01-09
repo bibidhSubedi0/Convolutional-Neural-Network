@@ -22,31 +22,15 @@ class ConvolutionLayers
 
 
 	// Define Filters for 1'st Convolutoin layer [Deterministic] -> Still there are better places to put filter
-	gridEntity STRONG_VERTICAL_EDGE_DETECTION = {
-		{ 1, 0, -1, 0, 1 },
-		{ 1, 0, -1, 0, 1 },
-		{ 1, 0, -1, 0, 1 },
-		{ 1, 0, -1, 0, 1 },
-		{ 1, 0, -1, 0, 1 } };
-	gridEntity STRONG_HORIZONTAL_EDGE_DETECTION = {
-		{1, 1, 1, 1, 1},
-		{0, 0, 0, 0, 0},
-		{-1, -1, -1, -1, -1},
-		{0, 0, 0, 0, 0},
-		{1, 1, 1, 1, 1} };
-	gridEntity STRONG_DIAGONAL_EDGE_DETECTION = {
-		{1, 1, 0, -1, -1},
-		{1, 1, 0, -1, -1},
-		{0, 0, 0, 0, 0},
-		{-1, -1, 0, 1, 1},
-		{-1, -1, 0, 1, 1} };
+
 
 	// Define Filters for 2'nd Convolution layer [Non-Determinstic/The shit to train]
 	std::vector<gridEntity> trained_filters;
 	// Assume i need to apply 4 filters( 3 x 3 x P) , P because i applied P filters in the last convolution layer to get P feature maps so it became P chanal input for my new convolution layer
+	int no_of_filters_in_second_CL;
 	volumetricEntity input_channels;
-	volumetricEntity training_filters;
-	volumetricEntity ouput_features;
+	std::vector<volumetricEntity> training_filters; // each kernal will have a dimention of say 3x3xN where N is the no of pooled maps 
+	volumetricEntity ouput_feature_maps;
 
 
 
@@ -63,11 +47,24 @@ public:
 	// Returns all the filters used int the first convolution layer
 	std::vector<gridEntity> get_all_predefined_filter();
 
+	// Returns all the training filters ijn the second convolution layer
+	std::vector<volumetricEntity> get_all_training_filter();
+
 	// Returns the raw image in form fo gridEntity
 	gridEntity get_raw_input_image();
 
 	// Return by reference as we may need to Insert into feature map
 	std::vector<gridEntity>& get_feature_map();
+
+
+	// Return by reference as we may need to Insert into input channel
+	volumetricEntity& get_input_channels();
+
+	// Return by reference as we may need to Insert into output features
+	volumetricEntity& get_output_feature_maps();
+
+
+
 
 	// Return by reference as we may need to Insert into pool map
 	std::vector<gridEntity>& get_pool_map();
@@ -77,12 +74,15 @@ public:
 
 	// Takes the reference to the feature map and activates it
 	void activate_feature_map_using_RELU_universal(gridEntity&);
+	void activate_feature_map_using_SIGMOID(gridEntity&);
 
 	// Takes the reference to the feature map and applies normaization to the feature map
 	void apply_normalaization_universal(gridEntity&);
 
 	// Takes a feature map and returns the pool map
 	gridEntity apply_pooling_univeral(gridEntity, int);
+
+
 
 
 };

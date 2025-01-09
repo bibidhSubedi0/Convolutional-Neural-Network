@@ -4,9 +4,9 @@
 
 ConvolutionLayers::ConvolutionLayers(gridEntity main_image) : raw_image(main_image) {
 	// Define predefined_filters for the network
-    this->predefined_filters.push_back(STRONG_VERTICAL_EDGE_DETECTION);
-    this->predefined_filters.push_back(STRONG_HORIZONTAL_EDGE_DETECTION);
-    this->predefined_filters.push_back(STRONG_DIAGONAL_EDGE_DETECTION);
+    this->predefined_filters.push_back(Filters::STRONG_VERTICAL_EDGE_DETECTION);
+    this->predefined_filters.push_back(Filters::STRONG_HORIZONTAL_EDGE_DETECTION);
+    this->predefined_filters.push_back(Filters::STRONG_DIAGONAL_EDGE_DETECTION);
     
     this->no_of_filters_used = 3;
 
@@ -19,7 +19,36 @@ ConvolutionLayers::ConvolutionLayers(gridEntity main_image) : raw_image(main_ima
     // ------------------------------------------------------------------
     // Add a mechnism to intilize the filters to some random values
     // ------------------------------------------------------------------
+
+    // Dimention rows = 3, cols =3, depth = no.of filters
+    // i will use 4 filter ub second CL so i will use 4 3x3xN filters where N is the no of. filters in last layer
     
+    /*this->no_of_filters_in_second_CL = 3;
+    this->training_filters.resize(this->no_of_filters_in_second_CL); 
+
+
+    // initilize the filters to some random values
+    for (int i = 0; i < this->no_of_filters_in_second_CL; i++)
+    {
+        volumetricEntity temp;
+        
+        // Initilize each filter to a random number
+        for (int dep = 0; dep < this->no_of_filters_used; dep++)
+        {
+            gridEntity sheet;
+            Matrix::randomize_all_values(sheet, 3, 3);
+            temp.push_back(sheet);
+        }
+
+        this->training_filters.push_back(temp);
+    }*/
+
+    volumetricEntity fs;
+    fs.push_back(Filters::STRONG_VERTICAL_EDGE_DETECTION);
+    fs.push_back(Filters::STRONG_HORIZONTAL_EDGE_DETECTION);
+    fs.push_back(Filters::STRONG_DIAGONAL_EDGE_DETECTION);
+    this->training_filters.push_back(fs);
+
 
 }
 
@@ -68,6 +97,21 @@ void ConvolutionLayers::activate_feature_map_using_RELU_universal(gridEntity &to
     }
     
 }
+
+void ConvolutionLayers::activate_feature_map_using_SIGMOID(gridEntity& to_activate)
+{
+    for (int i = 0; i < to_activate.size(); i++)
+    {
+        for (int j = 0; j < to_activate.at(0).size(); j++)
+        {
+            to_activate.at(i).at(j) = (1) / (1 + pow(2.71828, -to_activate.at(i).at(j)));
+        }
+    }
+
+}
+
+
+
 
 gridEntity ConvolutionLayers::apply_pooling_univeral(gridEntity to_pool, int stride = 2)
 {
@@ -125,6 +169,20 @@ std::vector<gridEntity>& ConvolutionLayers::get_feature_map() {
 
 std::vector<gridEntity>& ConvolutionLayers::get_pool_map() {
     return this->pool_maps;
+}
+
+volumetricEntity& ConvolutionLayers::get_input_channels() {
+    return this->input_channels;
+}
+
+std::vector<volumetricEntity> ConvolutionLayers::get_all_training_filter()
+{
+    return this->training_filters;
+}
+
+volumetricEntity &ConvolutionLayers::get_output_feature_maps()
+{
+    return this->ouput_feature_maps;
 }
 
 

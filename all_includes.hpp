@@ -11,6 +11,8 @@
 using gridEntity = std::vector<std::vector<double>>;
 using volumetricEntity = std::vector<std::vector<std::vector<double>>>;
 
+
+
 namespace Filters{
 
 	static gridEntity STRONG_VERTICAL_EDGE_DETECTION = {

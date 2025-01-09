@@ -6,7 +6,7 @@ int main()
 {
 
 	ImageInput* img = new ImageInput("drawing.png", CV_8UC1);
-	// img->showImage();
+	img->showImage();
 
 	// Get matrixified pixel values for the images
 	std::vector<std::vector<double>> pixelVals = img->getMatrixifiedPixelValues();
@@ -15,45 +15,38 @@ int main()
 	// Start the first convolution Layer
 	ConvolutionLayers l1(pixelVals);
 
-	//for (int filter_count = 0; filter_count < l1.get_all_predefined_filter().size(); filter_count++)
-	//{
-	//	gridEntity f_map=  l1.apply_filter_universal(l1.get_raw_input_image(), l1.get_all_predefined_filter().at(filter_count), 1);
-	//	l1.get_feature_map().push_back(f_map);
-	//}
+	for (int filter_count = 0; filter_count < l1.get_all_predefined_filter().size(); filter_count++)
+	{
+		gridEntity f_map=  l1.apply_filter_universal(l1.get_raw_input_image(), l1.get_all_predefined_filter().at(filter_count), 1);
+		l1.get_feature_map().push_back(f_map);
+	}
 
-	//// Activate feature maps -> NOT WORKING
-	//for(gridEntity &f_map: l1.get_feature_map())
-	//{
-	//	l1.activate_feature_map_using_RELU_universal(f_map);
-	//}
+	// Activate feature maps
+	for(gridEntity &f_map: l1.get_feature_map())
+	{
+		l1.activate_feature_map_using_RELU_universal(f_map);
+	}
 
-	//// May need to verify activation
 
-	//// Normaile the feature map
-	//for (gridEntity &f_map : l1.get_feature_map())
-	//{
-	//	l1.apply_normalaization_universal(f_map);
-	//}
+	for (gridEntity feature_map : l1.get_feature_map())
+	{
+		ImageInput i(feature_map);
+		i.showImage();
+	}
 
-	//for (gridEntity feature_map : l1.get_feature_map())
-	//{
-	//	ImageInput i(feature_map);
-	//	i.showImage();
-	//}
+	// Apply max pooling
+	for (int i = 0; i < l1.get_feature_map().size(); i++)
+	{
+		gridEntity pMap = l1.apply_pooling_univeral(l1.get_feature_map().at(i), 2);
+		l1.get_pool_map().push_back(pMap);
+	}
 
-	//// Apply max pooling
-	//for (int i = 0; i < l1.get_feature_map().size(); i++)
-	//{
-	//	gridEntity pMap = l1.apply_pooling_univeral(l1.get_feature_map().at(i), 2);
-	//	l1.get_pool_map().push_back(pMap);
-	//}
-
-	//// print pooled maps
-	//for (gridEntity pool : l1.get_pool_map())
-	//{
-	//	ImageInput i(pool);
-	//	i.showImage();
-	//}
+	// print pooled maps
+	for (gridEntity pool : l1.get_pool_map())
+	{
+		ImageInput i(pool);
+		i.showImage();
+	}
 
 
 	// ------------------------------------------------------------------
@@ -61,20 +54,6 @@ int main()
 	// -----------------------------------------------------------------
 	
 	// the vector<gridEntity> pool_maps IS THE INPUT CHANNEL for next layer
-
-
-
-	l1.get_pool_map().push_back(pixelVals);
-	l1.get_pool_map().push_back(pixelVals);
-	l1.get_pool_map().push_back(pixelVals);
-
-	for (gridEntity pool : l1.get_pool_map())
-	{
-		std::cout << "xxxxxxxxxxxxxxxxxxxx" << std::endl;
-		ImageInput i(pool);
-		i.showImage();
-	}
-
 	l1.get_input_channels() = l1.get_pool_map();
 
 
@@ -97,7 +76,7 @@ int main()
 		for (int i = 0; i < l1.get_input_channels().size(); i++) {
 			// l1.get_all_training_filter().at(filter_count).at(0); // first sheet of filter
 			// l1.get_input_channels().at(0); // first sheet of the input channel
-			gridEntity nth_filter_map = l1.apply_filter_universal(l1.get_all_training_filter().at(filter_count).at(i), l1.get_input_channels().at(i), 1);
+			gridEntity nth_filter_map = l1.apply_filter_universal(l1.get_input_channels().at(i), l1.get_all_training_filter().at(filter_count).at(i),1);
 			n_filter_maps.push_back(nth_filter_map);
 		}
 
@@ -118,10 +97,13 @@ int main()
 	// I probably wont need as i am gon use RELU anyways
 	// -----------------------------------------------------------------
 
+
 	// Activate feature maps -> NOT WORKING
 	for (gridEntity& f_map : l1.get_output_feature_maps())
 	{
-		l1.activate_feature_map_using_RELU_universal(f_map);
+		l1.activate_feature_map_using_SIGMOID(f_map);
+		ImageInput i(f_map);
+		i.showImage();
 	}
 
 
@@ -132,6 +114,18 @@ int main()
 	// Apply pooling to the output features
 	// -----------------------------------------------------------------
 	
+	// Apply max pooling
+	for (int i = 0; i < l1.get_output_feature_maps().size(); i++)
+	{
+		gridEntity pMap = l1.apply_pooling_univeral(l1.get_output_feature_maps().at(i), 2);
+		l1.get_final_pool_maps().push_back(pMap);
+	}
+
+	for (gridEntity pool : l1.get_final_pool_maps())
+	{
+		ImageInput i(pool);
+		i.showImage();
+	}
 
 
 

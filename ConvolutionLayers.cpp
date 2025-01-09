@@ -23,8 +23,7 @@ ConvolutionLayers::ConvolutionLayers(gridEntity main_image) : raw_image(main_ima
     // Dimention rows = 3, cols =3, depth = no.of filters
     // i will use 4 filter ub second CL so i will use 4 3x3xN filters where N is the no of. filters in last layer
     
-    /*this->no_of_filters_in_second_CL = 3;
-    this->training_filters.resize(this->no_of_filters_in_second_CL); 
+    this->no_of_filters_in_second_CL= 3;
 
 
     // initilize the filters to some random values
@@ -41,14 +40,7 @@ ConvolutionLayers::ConvolutionLayers(gridEntity main_image) : raw_image(main_ima
         }
 
         this->training_filters.push_back(temp);
-    }*/
-
-    volumetricEntity fs;
-    fs.push_back(Filters::STRONG_VERTICAL_EDGE_DETECTION);
-    fs.push_back(Filters::STRONG_HORIZONTAL_EDGE_DETECTION);
-    fs.push_back(Filters::STRONG_DIAGONAL_EDGE_DETECTION);
-    this->training_filters.push_back(fs);
-
+    }
 
 }
 
@@ -186,4 +178,7 @@ volumetricEntity &ConvolutionLayers::get_output_feature_maps()
 }
 
 
-
+volumetricEntity& ConvolutionLayers::get_final_pool_maps()
+{
+    return this->final_pool_maps;
+}

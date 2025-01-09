@@ -32,6 +32,8 @@ class ConvolutionLayers
 	std::vector<volumetricEntity> training_filters; // each kernal will have a dimention of say 3x3xN where N is the no of pooled maps 
 	volumetricEntity ouput_feature_maps;
 
+	
+	std::vector<gridEntity> final_pool_maps;
 
 
 	// Informations
@@ -62,6 +64,8 @@ public:
 
 	// Return by reference as we may need to Insert into output features
 	volumetricEntity& get_output_feature_maps();
+
+	std::vector<gridEntity> &get_final_pool_maps();
 
 
 

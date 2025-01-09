@@ -82,6 +82,7 @@ double Matrix::sum_of_all_elements(gridEntity matrix)
     return sum;
 }
 
+
 gridEntity Matrix::sum_of_all_matrix_elements(std::vector<gridEntity> all_matrices)
 {
     int rows = all_matrices[0].size();

@@ -41,6 +41,8 @@ void ImageInput::showImage()
     cv::waitKey(0);
 }
 
+
+// my image input was wrong 
 void ImageInput::matrixifyPixelValues() {
     this->pixel_values.clear();
 

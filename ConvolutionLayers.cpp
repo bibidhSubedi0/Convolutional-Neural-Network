@@ -35,7 +35,7 @@ ConvolutionLayers::ConvolutionLayers(gridEntity main_image) : raw_image(main_ima
         for (int dep = 0; dep < this->no_of_filters_used; dep++)
         {
             gridEntity sheet;
-            Matrix::randomize_all_values(sheet, 3, 3);
+            CNN_Matrix::Matrix::randomize_all_values(sheet, 3, 3);
             temp.push_back(sheet);
         }
 
@@ -69,7 +69,7 @@ void ConvolutionLayers::apply_normalaization_universal(gridEntity& to_normailize
 
 gridEntity ConvolutionLayers::apply_filter_universal(gridEntity image, gridEntity filt, int stride = 1)
 {
-    gridEntity f_map = Matrix::convolute(image, filt, stride);
+    gridEntity f_map = CNN_Matrix::Matrix::convolute(image, filt, stride);
     return f_map;
 
 }

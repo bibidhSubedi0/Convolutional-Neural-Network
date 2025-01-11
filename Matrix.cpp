@@ -1,6 +1,6 @@
 #include "Matrix.hpp"
 
-gridEntity Matrix::convolute(gridEntity input_image_section, gridEntity filter, int stride)
+gridEntity CNN_Matrix::Matrix::convolute(gridEntity input_image_section, gridEntity filter, int stride)
 {
     int inputHeight = input_image_section.size();
     int inputWidth = input_image_section[0].size();
@@ -41,7 +41,7 @@ gridEntity Matrix::convolute(gridEntity input_image_section, gridEntity filter, 
 
     return output;
 }
-double Matrix::genRandomNumber()
+double CNN_Matrix::Matrix::genRandomNumber()
 {
     std::random_device rd;
     std::mt19937 gen(rd()); // MerseNetworke Twister 19937 generator seeded with rd
@@ -53,7 +53,7 @@ double Matrix::genRandomNumber()
     float random_number = dis(gen);
     return random_number;
 }
-void Matrix::randomize_all_values(gridEntity &mat,int numRows,int numCols)
+void CNN_Matrix::Matrix::randomize_all_values(gridEntity &mat,int numRows,int numCols)
 {
     gridEntity temp;
     for (int i = 0; i < numRows; i++)
@@ -62,7 +62,7 @@ void Matrix::randomize_all_values(gridEntity &mat,int numRows,int numCols)
         for (int j = 0; j < numCols; j++)
         {
             double r = 0.00;
-            r = Matrix::genRandomNumber();
+            r = CNN_Matrix::Matrix::genRandomNumber();
             cols.push_back(r);
         }
         temp.push_back(cols);
@@ -71,7 +71,7 @@ void Matrix::randomize_all_values(gridEntity &mat,int numRows,int numCols)
 }
 
 
-double Matrix::sum_of_all_elements(gridEntity matrix)
+double CNN_Matrix::Matrix::sum_of_all_elements(gridEntity matrix)
 {
     double sum = 0.0;
     for (const auto& row : matrix) {
@@ -83,7 +83,7 @@ double Matrix::sum_of_all_elements(gridEntity matrix)
 }
 
 
-gridEntity Matrix::sum_of_all_matrix_elements(std::vector<gridEntity> all_matrices)
+gridEntity CNN_Matrix::Matrix::sum_of_all_matrix_elements(std::vector<gridEntity> all_matrices)
 {
     int rows = all_matrices[0].size();
     int cols = all_matrices[0][0].size();
@@ -98,4 +98,152 @@ gridEntity Matrix::sum_of_all_matrix_elements(std::vector<gridEntity> all_matric
         }
     }
     return result;
+}
+
+void CNN_Matrix::Matrix::displayMatrix(gridEntity mat) {
+    for (auto rows : mat)
+    {
+        for (auto vals : rows)
+        {
+            std::cout << vals << " ";
+        }
+        std::cout<<"\n";
+    }
+}
+
+
+
+GeneralMatrix::Matrix::Matrix(int numRows, int numCols, bool isRandom = true)
+{
+    this->numRows = numRows;
+    this->numCols = numCols;
+
+    for (int i = 0; i < numRows; i++)
+    {
+        std::vector<double> cols;
+        for (int j = 0; j < numCols; j++)
+        {
+            double r = 0.00;
+            if (isRandom)
+                r = this->genRandomNumber();
+            cols.push_back(r);
+        }
+        this->values.push_back(cols);
+    }
+}
+
+
+double GeneralMatrix::Matrix::genRandomNumber()
+{
+    std::random_device rd;
+    std::mt19937 gen(rd()); // MerseNetworke Twister 19937 generator seeded with rd
+
+    // Define the distribution for floating point numbers between 0 and 1
+    std::uniform_real_distribution<float> dis(0.3f, 0.7f);
+
+    // Generate a random float number between 0 and 1 with 3 decimal digits
+    float random_number = dis(gen);
+    return random_number;
+    // Output the generated random number
+    // return 0.5;
+}
+
+void GeneralMatrix::Matrix::printToConsole()
+{
+    for (int i = 0; i < numRows; i++)
+    {
+        for (int j = 0; j < numCols; j++)
+        {
+            std::cout << std::setw(10) << this->values[i][j] << "\t";
+        }
+        std::cout << std::endl;
+    }
+}
+
+void GeneralMatrix::Matrix::divideByScalar(double scalar) {
+    for (int i = 0; i < numRows; ++i) {
+        for (int j = 0; j < numCols; ++j) {
+            values[i][j] /= scalar;
+        }
+    }
+}
+void GeneralMatrix::Matrix::setVal(int r, int c, double val)
+{
+    this->values[r][c] = val;
+}
+
+double GeneralMatrix::Matrix::getVal(int r, int c)
+{
+    return this->values[r][c];
+}
+
+GeneralMatrix::Matrix* GeneralMatrix::Matrix::tranpose()
+{
+    Matrix* tans = new Matrix(this->numCols, this->numRows, false);
+    for (int orgRow = 0; orgRow < this->numRows; orgRow++)
+    {
+        for (int orgCol = 0; orgCol < this->numCols; orgCol++)
+        {
+            tans->values[orgCol][orgRow] = getVal(orgRow, orgCol);
+        }
+    }
+    return tans;
+}
+GeneralMatrix::Matrix* GeneralMatrix::Matrix::operator *(Matrix*& B)
+{
+    int rows_A = numRows;
+    int cols_A = numCols;
+    int cols_B = B->getNumCols();
+    int rows_B = B->getNumRow();
+    // A vaneko Aafu, B vaneko arko
+    // Resultant matrix C with size rows_A x
+    Matrix* C = new Matrix(rows_A, cols_B, false);
+
+    if (cols_A != rows_B)
+    {
+        std::cout << "-------------------------------------------------------------" << std::endl;
+        std::cout << "Invlaid Dimentions" << std::endl;
+        std::cout << std::endl;
+        std::cout << std::endl;
+        std::cout << " This Matrix " << std::endl;
+        printToConsole();
+
+        std::cout << " Passed Matrix " << std::endl;
+        B->printToConsole();
+        std::cout << std::endl;
+        std::cout << std::endl;
+
+        return C;
+    }
+
+    for (int i = 0; i < rows_A; ++i)
+    {
+        for (int j = 0; j < cols_B; ++j)
+        {
+            for (int k = 0; k < cols_A; ++k)
+            {
+                C->values[i][j] += values[i][k] * B->values[k][j];
+            }
+        }
+    }
+
+    return C;
+}
+
+GeneralMatrix::Matrix* GeneralMatrix::Matrix::operator +(Matrix*& B)
+{
+    int rows = B->getNumRow();
+    int cols = B->getNumCols(); // Assuming both matrices have the same dimensions
+
+    Matrix* ans = new Matrix(rows, cols, false);
+
+    for (int i = 0; i < rows; ++i)
+    {
+        for (int j = 0; j < cols; ++j)
+        {
+            ans->values[i][j] += values[i][j] + B->values[i][j];
+        }
+    }
+
+    return ans;
 }

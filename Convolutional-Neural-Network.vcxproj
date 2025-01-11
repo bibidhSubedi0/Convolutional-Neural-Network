@@ -133,14 +133,20 @@
   <ItemGroup>
     <ClInclude Include="all_includes.hpp" />
     <ClInclude Include="ConvolutionLayers.hpp" />
+    <ClInclude Include="DeepNetwork.hpp" />
     <ClInclude Include="ImageInput.hpp" />
+    <ClInclude Include="Layer.hpp" />
     <ClInclude Include="Matrix.hpp" />
+    <ClInclude Include="Neuron.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ConvolutionLayers.cpp" />
+    <ClCompile Include="DeepNetwork.cpp" />
     <ClCompile Include="ImageInput.cpp" />
+    <ClCompile Include="Layer.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Matrix.cpp" />
+    <ClCompile Include="Neuron.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

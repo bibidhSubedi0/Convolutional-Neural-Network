@@ -1,12 +1,12 @@
 #include "ImageInput.hpp"
 #include "Matrix.hpp"
 #include "ConvolutionLayers.hpp"
-
+#include "DeepNetwork.hpp"
 int main()
 {
 
 	ImageInput* img = new ImageInput("drawing.png", CV_8UC1);
-	img->showImage();
+	// img->showImage();
 
 	// Get matrixified pixel values for the images
 	std::vector<std::vector<double>> pixelVals = img->getMatrixifiedPixelValues();
@@ -28,11 +28,11 @@ int main()
 	}
 
 
-	for (gridEntity feature_map : l1.get_feature_map())
-	{
-		ImageInput i(feature_map);
-		i.showImage();
-	}
+	//for (gridEntity feature_map : l1.get_feature_map())
+	//{
+	//	ImageInput i(feature_map);
+	//	i.showImage();
+	//}
 
 	// Apply max pooling
 	for (int i = 0; i < l1.get_feature_map().size(); i++)
@@ -42,11 +42,11 @@ int main()
 	}
 
 	// print pooled maps
-	for (gridEntity pool : l1.get_pool_map())
-	{
-		ImageInput i(pool);
-		i.showImage();
-	}
+	//for (gridEntity pool : l1.get_pool_map())
+	//{
+	//	ImageInput i(pool);
+	//	i.showImage();
+	//}
 
 
 	// ------------------------------------------------------------------
@@ -63,6 +63,24 @@ int main()
 
 
 	std::vector<gridEntity> all_final_set_of_filter_maps;
+
+
+	/*std::cout << "The filters to train are as follow : " << std::endl;
+	for (auto f : l1.get_all_training_filter())
+	{
+		std::cout << "------------------------------------\n";
+		std::cout << "#########################\n";
+		
+		for (auto sheet : f)
+		{
+			CNN_Matrix::Matrix::displayMatrix(sheet);
+			std::cout << "#########################\n";
+			
+		}
+		
+		std::cout << "------------------------------------\n";
+	}*/
+
 	for (int filter_count = 0; filter_count < l1.get_all_training_filter().size(); filter_count++)
 	{
 		// first sheet of training filter to first sheet of input channel - will get 1st filter map
@@ -83,7 +101,7 @@ int main()
 		
 		// then sum these filter map -> 1st + 2nd + ... + nth  = summed_filter_map
 
-		gridEntity sum_of_filters = Matrix::sum_of_all_matrix_elements(n_filter_maps);
+		gridEntity sum_of_filters = CNN_Matrix::Matrix::sum_of_all_matrix_elements(n_filter_maps);
 
 		all_final_set_of_filter_maps.push_back(sum_of_filters);
 		// then go downard  to apply activation and normalaiztion
@@ -103,7 +121,7 @@ int main()
 	{
 		l1.activate_feature_map_using_SIGMOID(f_map);
 		ImageInput i(f_map);
-		i.showImage();
+		// i.showImage();
 	}
 
 
@@ -121,25 +139,52 @@ int main()
 		l1.get_final_pool_maps().push_back(pMap);
 	}
 
-	for (gridEntity pool : l1.get_final_pool_maps())
+	/*for (gridEntity pool : l1.get_final_pool_maps())
 	{
 		ImageInput i(pool);
 		i.showImage();
-	}
+	}*/
 
 
 
 	// ------------------------------------------------------------------
 	// Flatten the pooled layer
 	// -----------------------------------------------------------------
+	std::vector<double> flatVec;
+	for (const auto& matrix : l1.get_final_pool_maps()) {
+		for (const auto& row : matrix) {
+			flatVec.insert(flatVec.end(), row.begin(), row.end());
+		}
+	}
 
-
+	for (auto x : flatVec)
+	{
+		std::cout << x << std::endl;
+	}
 
 
 
 	// ------------------------------------------------------------------
 	// Feed into deep neural network 
 	// -----------------------------------------------------------------
+
+
+	vector<double> inputs = flatVec ;
+	vector<double> target = { 0,0,0,0,0,1,0,0,0,0 };
+	double learning_rates =  0.01 ;// { 0.01, 0.1, , 1 };
+	vector<int> topologies = { (int)inputs.size(),8,(int)target.size()} ; // { {4, 8, 4}, { 4,8,16,8,4 },  };
+
+	DeepNetwork* Net = new DeepNetwork(topologies, learning_rates);
+	Net->setCurrentInput(inputs);
+	Net->setTarget(target);
+
+	Net->forwardPropogation();
+
+	Net->setErrors();
+
+	std::cout << "Error is : " << Net->getGlobalError();
+
+
 }
 
 

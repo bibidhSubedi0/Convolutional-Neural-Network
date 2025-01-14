@@ -216,7 +216,11 @@ void DeepNetwork::setErrors()
     for (int i = 0; i < target.size(); i++)
     {
         double act = target[i];
-        double pred =0.999999* outputNeurons[i]->getActivatedVal();
+        double pred = outputNeurons[i]->getActivatedVal();
+
+        double epsilon = 1e-15; // Small value to avoid instability
+        pred = std::max(epsilon, std::min(1.0 - epsilon, pred));
+
         this->errors[i] = act * std::log(pred) + (1 - act) * std::log(1 - pred);
 
         // These are baseically the gadeints
@@ -224,7 +228,7 @@ void DeepNetwork::setErrors()
 
         // This is the total cross entropy error
         this->error += this->errors[i]; //
-        std::cout<<act<<"\t"<<pred<<"\t" << this->error << std::endl;
+        // std::cout<<act<<"\t"<<pred<<"\t" << this->error << std::endl;
     }
 
 
@@ -242,7 +246,7 @@ void DeepNetwork::saveThisError(double error)
     this->histErrors.push_back(error);
 }
 
-vector<GeneralMatrix::Matrix*> DeepNetwork::gardientComputation()
+void DeepNetwork::gardientComputation()
 {
 
     GeneralMatrix::Matrix* gradients;
@@ -253,22 +257,34 @@ vector<GeneralMatrix::Matrix*> DeepNetwork::gardientComputation()
     int outputLayerIndex = this->topology.size() - 1;
     vector<GeneralMatrix::Matrix*> allGradients;
 
+    /*
+        -----------------------------------------VVIP NOTE ---------------------------------------------
+        So turns out, using softmax with Cross Entropy is extermly good. When we used the sigmoid activation with cross entropy we used to calculate the gradiets as
+        
+        gradient_for_ith_otuput(gi) = Cross_entropy_loss_derivative(yi) x sigmoid_derivative(yi)
+
+        but now as we are using softmax, the equation neatly cancels out to just gradient  = predicted - actual output
+    */
+
+
     gradients = new GeneralMatrix::Matrix(
         1,
         this->topology.at(outputLayerIndex),
         false);
-    DerivedValuesFromOtoH = this->layers.at(outputLayerIndex)->convertTOMatrixDerivedVal();
-    for (int i = 0; i < this->topology.at(outputLayerIndex); i++)
-    {
-        double e = this->errorDerivatives.at(i);
-        double y = DerivedValuesFromOtoH->getVal(0, i);
-        double g = e * y;
-        gradients->setVal(0, i, g);
+   
+    
+    
+    size_t n = this->layers.at(outputLayerIndex)->getNeurons().size();
+    vector<double> trueLabel = this->target;
+    for (size_t i = 0; i < n; i++) {
+        gradients->setVal(0, i, this->layers.at(outputLayerIndex)->getNeuron(i)->getActivatedVal() - trueLabel[i]);
     }
+
     GeneralMatrix::Matrix* temp = new GeneralMatrix::Matrix(1, this->topology.at(outputLayerIndex), false);
     allGradients.push_back(*temp + gradients);
-
-    delete DerivedValuesFromOtoH;
+    
+    
+    
     for (int i = (outputLayerIndex - 1); i > 0; i--)
     {
         GeneralMatrix::Matrix* t = new GeneralMatrix::Matrix(1, topology.at(i), false);
@@ -291,14 +307,14 @@ vector<GeneralMatrix::Matrix*> DeepNetwork::gardientComputation()
             double g = gradients->getVal(0, colCounter) * hiddenDerived->getVal(0, colCounter);
             gradients->setVal(0, colCounter, g);
         }
-
         allGradients.push_back(*t + gradients);
+
         delete lastGradient;
         delete tranposedWeightMatrices;
         delete hiddenDerived;
     }
 
-    return allGradients;
+    this->GradientMatrices = allGradients;
 }
 
 
@@ -322,7 +338,7 @@ void DeepNetwork::updateWeights()
     GeneralMatrix::Matrix* transposedHidden;
     int outputLayerIndex = topology.size() - 1;
 
-    gradients = GradientMatrices[0];
+    gradients = this->GradientMatrices[0];
     gradientsTransposed = gradients->tranpose();
     PreviousLayerActivatedVals = this->layers.at(outputLayerIndex - 1)->convertTOMatrixActivatedVal();
     deltaWeights = new GeneralMatrix::Matrix(
@@ -467,7 +483,6 @@ void DeepNetwork::updateWeights()
         delete tempNewBiases;
         delete deltaWeights;
     }
-    delete gradients;
 
     for (int i = 0; i < this->weightMatrices.size(); i++)
     {
@@ -521,4 +536,10 @@ std::vector<GeneralMatrix::Matrix*> DeepNetwork::averageGradients(vector<vector<
     this->GradientMatrices.resize(averageMatrices.size());
     this->GradientMatrices = averageMatrices;
     return averageMatrices;
+}
+
+
+
+std::vector<GeneralMatrix::Matrix*> DeepNetwork::GetGradientMatrices(){
+    return this->GradientMatrices;
 }

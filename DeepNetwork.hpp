@@ -27,10 +27,12 @@ public:
     void setErrorDerivatives();
     std::vector<double> gethisterrors();
     void updateWeights();
-    std::vector<GeneralMatrix::Matrix*> gardientComputation();
+    void gardientComputation();
     std::vector<GeneralMatrix::Matrix*> averageGradients(std::vector<std::vector<GeneralMatrix::Matrix*>>);
     void saveThisError(double error);
 
+
+    std::vector<GeneralMatrix::Matrix*> GetGradientMatrices();
 
 private:
     int topologySize;

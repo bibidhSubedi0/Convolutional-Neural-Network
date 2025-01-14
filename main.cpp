@@ -157,11 +157,6 @@ int main()
 		}
 	}
 
-	for (auto x : flatVec)
-	{
-		std::cout << x << std::endl;
-	}
-
 
 
 	// ------------------------------------------------------------------
@@ -169,18 +164,38 @@ int main()
 	// -----------------------------------------------------------------
 
 
+
 	vector<double> inputs = flatVec ;
-	vector<double> target = { 0,0,0,0,0,1,0,0,0,0 };
+	vector<double> target = { 0,1};
 	double learning_rates =  0.01 ;// { 0.01, 0.1, , 1 };
-	vector<int> topologies = { (int)inputs.size(),8,(int)target.size()} ; // { {4, 8, 4}, { 4,8,16,8,4 },  };
+	vector<int> topologies = { (int)inputs.size(),400,(int)target.size()} ; // { {4, 8, 4}, { 4,8,16,8,4 },  };
 
 	DeepNetwork* Net = new DeepNetwork(topologies, learning_rates);
+
 	Net->setCurrentInput(inputs);
 	Net->setTarget(target);
 
 	Net->forwardPropogation();
 
 	Net->setErrors();
+
+	Net->gardientComputation();
+	
+	std::vector<GeneralMatrix::Matrix*> GradientMatrices = Net->GetGradientMatrices();
+
+
+
+	Net->updateWeights();
+
+	std::cout << "Gradients at outermost layer are are follow : " << std::endl;
+	GeneralMatrix::Matrix* last_gardient = GradientMatrices.at(GradientMatrices.size() - 1);
+
+
+
+	// To update the kernals of convoluton 
+	// change in kenrnal = kernal (*) kernal gradients
+
+	
 
 	std::cout << "Error is : " << Net->getGlobalError();
 

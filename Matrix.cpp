@@ -154,7 +154,7 @@ void GeneralMatrix::Matrix::printToConsole()
     {
         for (int j = 0; j < numCols; j++)
         {
-            std::cout << std::setw(10) << this->values[i][j] << "\t";
+            std::cout << " " << this->values[i][j] << "\t";
         }
         std::cout << std::endl;
     }

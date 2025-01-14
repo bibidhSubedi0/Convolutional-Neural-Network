@@ -1,4 +1,5 @@
 #include "Layer.hpp"
+#include <numeric>
 
 Layer::Layer(int size)
 {
@@ -92,12 +93,23 @@ Layer* Layer::feedForward(GeneralMatrix::Matrix* Weights, GeneralMatrix::Matrix*
     else // Last ho vane
     {
         Layer* temp = new Layer(Weights->getNumCols(), 1);
-
         for (int i = 0; i < Weights->getNumCols(); i++)
         {
             temp->setVal(i, zWithBias->getVal(0, i));
-            temp->getNeuron(i)->ActivateFinal();
-            temp->getNeuron(i)->DeriveFinal();
+        }
+
+        double maxVal = -INFINITY;
+        for (const auto& neuron : temp->getNeurons())
+            maxVal = maxVal > neuron->getVal() ? maxVal : neuron->getVal();; // Avoid overflow by normalizing with max
+        vector<double> expVals(temp->getNeurons().size());
+        for (size_t i = 0; i < temp->getNeurons().size(); i++)
+            expVals[i] = exp(temp->getNeurons().at(i)->getVal() - maxVal);
+
+        double sumExp = std::accumulate(expVals.begin(), expVals.end(), 0.0);
+
+
+        for (size_t i = 0; i < temp->getNeurons().size(); i++) {
+            temp->setActivatedVal(i, expVals[i] / sumExp);
         }
         return temp;
     }
@@ -119,4 +131,9 @@ vector<Neuron*> Layer::getNeurons()
 void Layer::setVal(int i, double v)
 {
     this->neurons[i]->setVal(v);
+}
+
+void Layer::setActivatedVal(int i, double v0)
+{
+    this->neurons[i]->setActivatedVal(v0);    
 }

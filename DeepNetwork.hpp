@@ -33,6 +33,7 @@ public:
 
 
     std::vector<GeneralMatrix::Matrix*> GetGradientMatrices();
+    std::vector<GeneralMatrix::Matrix*> GetWeightMatrices();
 
 private:
     int topologySize;

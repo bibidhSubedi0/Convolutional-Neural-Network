@@ -320,6 +320,10 @@ void DeepNetwork::gardientComputation()
 
 
 
+std::vector<GeneralMatrix::Matrix*> DeepNetwork::GetWeightMatrices()
+{
+    return this->weightMatrices;
+}
 
 void DeepNetwork::updateWeights()
 {

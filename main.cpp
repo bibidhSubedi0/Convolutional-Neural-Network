@@ -198,12 +198,12 @@ int main()
 	Net->updateWeights();
 	// GeneralMatrix::Matrix* last_gardient = GradientMatrices.at(GradientMatrices.size() - 1);
 
-	for (int i = 0; i < GradientMatrices.size(); i++)
-	{
-		std::cout << GradientMatrices.at(i)->getNumCols() << " " << GradientMatrices.at(i)->getNumRow() << std::endl;
-	}
+	//for (int i = 0; i < GradientMatrices.size(); i++)
+	//{
+	//	std::cout << GradientMatrices.at(i)->getNumCols() << " " << GradientMatrices.at(i)->getNumRow() << std::endl;
+	//}
 
-	std::cout << chanels << "  " << filt_height << "  " << filt_width << std::endl;
+	// std::cout << chanels << "  " << filt_height << "  " << filt_width << std::endl;
 
 
 	// Reshape the gradients in kernal form i.e. for not channels '3' ota widthxheight '11x11' ko array
@@ -219,10 +219,10 @@ int main()
 
 	reqGrads = *last_gradiet * tranposedWeightMatrices;
 
-	std::cout << reqGrads->getNumCols() << " " << reqGrads->getNumRow() << std::endl;
+	// std::cout << reqGrads->getNumCols() << " " << reqGrads->getNumRow() << std::endl;
 
 	
-	volumetricEntity poolGradients(chanels); // 3 for now
+	volumetricEntity poolGradients; // 3 for now
 	int last_pos = 0;
 	int next_pos = filt_width * filt_width - 1;
 	gridEntity temp(filt_width);
@@ -236,7 +236,9 @@ int main()
 			std::vector<double> te;
 			for (int j = 0; j < filt_height; j++)
 			{
-				te.push_back(reqGrads->getVal(0, col));
+				double x = reqGrads->getVal(0, col);
+				std::cout << x << std::endl;
+				te.push_back(x);
 				col++;
 			}
 			temp.push_back(te);
@@ -245,21 +247,80 @@ int main()
 	}
 
 
-	// Checkk
-	//std::cout << "----------------------------------------------------------------";
-	//for (auto pG : poolGradients)
-	//{
-	//	for (int i = 0; i < pG.size(); i++)
-	//	{
-	//		for (int j = 0; j < pG.at(0).size(); j++)
-	//		{
-	//			std::cout << pG.at(i).at(j) << " ";
-	//		}
-	//		std::cout << "\n";
-	//	}
-	//	std::cout << "----------------------------------------------------------------";
-	//}
 	
+	std::cout << l1.get_output_feature_maps().at(0).size()<<"  "<< l1.get_output_feature_maps().at(0).at(0).size()<<"\n";
+	std::vector<gridEntity> filterMapGradients(l1.get_all_training_filter().size(),gridEntity(l1.get_output_feature_maps().at(0).size(), std::vector<double>(l1.get_output_feature_maps().at(0).at(0).size(), 0.0)));
+	std::cout << filterMapGradients.size() << "  " << filterMapGradients.at(0).size() <<" "<< filterMapGradients.at(0).at(0).size() << "\n";
+
+
+	
+	volumetricEntity unpooledGradients; // To store unpooled gradients for all channels
+
+	for (int ch = 0; ch < chanels; ch++)
+	{
+		gridEntity unpooled_map = l1.unpool_without_indices(poolGradients[ch], all_final_set_of_filter_maps[ch], 2,2,2);
+		unpooledGradients.push_back(unpooled_map);
+
+		// Debugging: Display unpooled gradients
+		std::cout << "Unpooled Gradients for Channel " << ch + 1 << ":\n";
+		for (const auto& row : unpooled_map)
+		{
+			for (const auto& val : row)
+			{
+				std::cout << val << " ";
+			}
+			std::cout << std::endl;
+		}
+	}
+
+	// Somehow get the gradients for filters from the gradients to the pooled maps
+	
+
+	std::vector<gridEntity> inputChannels = l1.get_input_channels();
+	// Compute filter gradients
+	std::vector<volumetricEntity> filterGradients = l1.compute_filter_gradients(
+		inputChannels,
+		unpooledGradients,
+		1 // Assuming stride of 1
+	);
+
+	// Debug: Print gradients
+	for (size_t filterIdx = 0; filterIdx < filterGradients.size(); ++filterIdx) {
+		std::cout << "Filter " << filterIdx + 1 << " Gradients:\n";
+		for (size_t channelIdx = 0; channelIdx < filterGradients[filterIdx].size(); ++channelIdx) {
+			std::cout << "  Channel " << channelIdx + 1 << ":\n";
+			for (const auto& row : filterGradients[filterIdx][channelIdx]) {
+				for (const auto& val : row) {
+					std::cout << val << " ";
+				}
+				std::cout << std::endl;
+			}
+		}
+	}
+
+
+
+	double learningRate = 0.01; // Example learning rate
+
+	l1.update_filters_with_gradients(l1.get_all_training_filter(),filterGradients,learningRate);
+
+	// Debug: Print the updated filters
+	for (size_t filterIdx = 0; filterIdx < l1.get_all_training_filter().size(); ++filterIdx)
+	{
+		std::cout << "Updated Filter Tensor " << filterIdx + 1 << ":\n";
+		for (size_t channelIdx = 0; channelIdx < l1.get_all_training_filter()[filterIdx].size(); ++channelIdx)
+		{
+			std::cout << "  Channel " << channelIdx + 1 << ":\n";
+			for (const auto& row : l1.get_all_training_filter()[filterIdx][channelIdx])
+			{
+				for (const auto& val : row)
+				{
+					std::cout << val << " ";
+				}
+				std::cout << std::endl;
+			}
+		}
+	}
 
 
 	

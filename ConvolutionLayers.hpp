@@ -50,7 +50,7 @@ public:
 	std::vector<gridEntity> get_all_predefined_filter();
 
 	// Returns all the training filters ijn the second convolution layer
-	std::vector<volumetricEntity> get_all_training_filter();
+	std::vector<volumetricEntity>& get_all_training_filter();
 
 	// Returns the raw image in form fo gridEntity
 	gridEntity get_raw_input_image();
@@ -87,7 +87,17 @@ public:
 	gridEntity apply_pooling_univeral(gridEntity, int);
 
 
+	gridEntity unpool_without_indices( gridEntity& ,  gridEntity& , int , int , int );
 
+
+	std::vector<volumetricEntity> compute_filter_gradients(
+		const std::vector<gridEntity>& inputChannels,        // Input to the convolutional layer
+		const std::vector<gridEntity>& outputGradients,      // Gradients w.r.t output (from unpooling)
+		int stride
+	);
+
+
+	void update_filters_with_gradients(std::vector<volumetricEntity>&, const std::vector<volumetricEntity>&, double learningRate);
 
 };
 

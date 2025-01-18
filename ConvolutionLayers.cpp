@@ -102,6 +102,51 @@ void ConvolutionLayers::activate_feature_map_using_SIGMOID(gridEntity& to_activa
 
 }
 
+gridEntity ConvolutionLayers::unpool_without_indices( gridEntity& pooled_gradients,  gridEntity& original_filter_map, int stride = 2, int poolHeight = 2, int poolWidth = 2)
+{
+    // Get dimensions of the original feature map
+    int originalHeight = original_filter_map.size();
+    int originalWidth = original_filter_map[0].size();
+
+    // Initialize the unpooled gradient matrix with zeros
+    gridEntity unpooled_gradients(originalHeight, std::vector<double>(originalWidth, 0.0));
+
+    // Iterate through the pooled gradients
+    for (int i = 0; i < pooled_gradients.size(); i++)
+    {
+        for (int j = 0; j < pooled_gradients[0].size(); j++)
+        {
+            // Identify the pooling window in the original feature map
+            int startRow = i * stride;
+            int startCol = j * stride;
+
+            int endRow = std::min(startRow + poolHeight, originalHeight);
+            int endCol = std::min(startCol + poolWidth, originalWidth);
+
+            // Find the position of the maximum value in the pooling window
+            double max_val = -1e9; // Use a very small number as initial max
+            int maxRow = startRow, maxCol = startCol;
+
+            for (int row = startRow; row < endRow; row++)
+            {
+                for (int col = startCol; col < endCol; col++)
+                {
+                    if (original_filter_map[row][col] > max_val)
+                    {
+                        max_val = original_filter_map[row][col];
+                        maxRow = row;
+                        maxCol = col;
+                    }
+                }
+            }
+
+            // Assign the pooled gradient to the max position in the unpooled gradient
+            unpooled_gradients[maxRow][maxCol] += pooled_gradients[i][j];
+        }
+    }
+
+    return unpooled_gradients;
+}
 
 
 
@@ -167,7 +212,7 @@ volumetricEntity& ConvolutionLayers::get_input_channels() {
     return this->input_channels;
 }
 
-std::vector<volumetricEntity> ConvolutionLayers::get_all_training_filter()
+std::vector<volumetricEntity>& ConvolutionLayers::get_all_training_filter()
 {
     return this->training_filters;
 }
@@ -182,3 +227,81 @@ volumetricEntity& ConvolutionLayers::get_final_pool_maps()
 {
     return this->final_pool_maps;
 }
+
+std::vector<volumetricEntity> ConvolutionLayers::compute_filter_gradients(
+    const std::vector<gridEntity>& inputChannels,        // Input to the convolutional layer
+    const std::vector<gridEntity>& outputGradients,      // Gradients w.r.t output (from unpooling)
+    int stride = 1                                       // Stride used during convolution
+) {
+    std::vector<volumetricEntity> filterGradients;
+
+    int numFilters = outputGradients.size();
+    int numChannels = inputChannels.size();
+
+    // Loop through each filter
+    for (int filterIdx = 0; filterIdx < numFilters; ++filterIdx) {
+        volumetricEntity filterGradient(numChannels);
+
+        // Loop through each input channel
+        for (int channelIdx = 0; channelIdx < numChannels; ++channelIdx) {
+            // Perform convolution between the input channel and output gradient
+            gridEntity gradient = apply_filter_universal(
+                inputChannels[channelIdx],
+                outputGradients[filterIdx],
+                stride
+            );
+
+            // Store the resulting gradient
+            filterGradient[channelIdx] = gradient;
+        }
+
+        // Append the filter gradient (volumetric entity)
+        filterGradients.push_back(filterGradient);
+    }
+
+    return filterGradients;
+}
+
+
+
+
+void ConvolutionLayers::update_filters_with_gradients(std::vector<volumetricEntity>& filters,const std::vector<volumetricEntity>& gradients,double learningRate)
+{
+    // Loop through each filter (volumetric entity)
+    for (size_t filterIdx = 0; filterIdx < filters.size(); ++filterIdx)
+    {
+        volumetricEntity& filterTensor = filters[filterIdx];                // Current filter tensor
+        const volumetricEntity& gradientTensor = gradients[filterIdx];     // Corresponding gradient tensor
+
+        // Ensure the tensor dimensions match
+        if (filterTensor.size() != gradientTensor.size())
+        {
+            std::cerr << "Error: Mismatch in tensor dimensions for filter " << filterIdx << "\n";
+            continue;
+        }
+
+        // Update each 2D filter (gridEntity) in the tensor
+        for (size_t channelIdx = 0; channelIdx < filterTensor.size(); ++channelIdx)
+        {
+            gridEntity& filter = filterTensor[channelIdx];                 // Current 2D filter
+            const gridEntity& gradient = gradientTensor[channelIdx];       // Corresponding 2D gradient
+
+            // Ensure 2D dimensions match
+            if (filter.size() != gradient.size())
+            {
+                std::cerr << "Error: Mismatch in filter dimensions for channel " << channelIdx << " of filter " << filterIdx << "\n";
+                continue;
+            }
+
+            // Update filter values
+            for (size_t i = 0; i < filter.size(); ++i)
+            {
+                for (size_t j = 0; j < filter[i].size(); ++j)
+                {
+                    filter[i][j] -= learningRate * gradient[i][j];
+                }
+            }
+        }
+    }
+}
+

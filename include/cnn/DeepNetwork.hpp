@@ -1,7 +1,7 @@
 #pragma once
 #include"vector"
-#include"Matrix.hpp"
-#include"Layer.hpp"
+#include"../cnn/Matrix.hpp"
+#include"../cnn/Layer.hpp"
 class DeepNetwork
 {
 

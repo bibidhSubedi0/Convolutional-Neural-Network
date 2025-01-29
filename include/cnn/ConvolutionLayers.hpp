@@ -1,5 +1,6 @@
 #pragma once
-#include "all_includes.hpp"
+#include "../cnn/all_includes.hpp"
+
 
 
 class ConvolutionLayers

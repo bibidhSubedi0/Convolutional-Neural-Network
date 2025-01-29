@@ -1,12 +1,12 @@
-#include "ImageInput.hpp"
+#include "../cnn/ImageInput.hpp"
 #include "Matrix.hpp"
-#include "ConvolutionLayers.hpp"
-#include "DeepNetwork.hpp"
+#include "../cnn/ConvolutionLayers.hpp"
+#include "../cnn/DeepNetwork.hpp"
+
 int main()
 {
-
-	ImageInput* img = new ImageInput("drawing.png", CV_8UC1);
-	 img->showImage();
+	ImageInput* img = new ImageInput("../resources/drawing.png", CV_8UC1);
+	img->showImage();
 
 	// Get matrixified pixel values for the images
 	std::vector<std::vector<double>> pixelVals = img->getMatrixifiedPixelValues();
@@ -55,11 +55,15 @@ int main()
 
 	// the vector<gridEntity> pool_maps IS THE INPUT CHANNEL for next layer
 	l1.get_input_channels() = l1.get_pool_map();
+	vector<double> target = { 1,0 };
+	double learning_rates = 0.01;
+	vector<int> topologies = { 363,400,(int)target.size() };
+	DeepNetwork* Net = new DeepNetwork(topologies, learning_rates);
 
+	double learningRate = 0.01;
 
-
-	for(int epoch=0;epoch <10;epoch++){
-		std::cout << "Training Epoch" <<epoch<< std::endl;
+	for (int epoch = 0;epoch < 10;epoch++) {
+		std::cout << "Training Epoch" << epoch << std::endl;
 		// ------------------------------------------------------------------
 		// Apply the 'volumetricEntity training_filters' designated to the second convolution layer and get the 'volumetricEntity ouput_features;'
 		// -----------------------------------------------------------------
@@ -102,7 +106,7 @@ int main()
 		// ------------------------------------------------------------------
 		// Flatten the pooled layer
 		// -----------------------------------------------------------------
-		
+
 		std::vector<double> flatVec;
 		for (const auto& matrix : l1.get_final_pool_maps()) {
 			for (const auto& row : matrix) {
@@ -115,13 +119,7 @@ int main()
 		int chanels = l1.get_final_pool_maps().size(); // no. of filters
 		int filt_height = l1.get_final_pool_maps().at(0).size(); // rows
 		int filt_width = l1.get_final_pool_maps().at(0).at(0).size();
-		
-		vector<double> inputs = flatVec;
-		vector<double> target = { 0,1 };
-		double learning_rates = 0.01;
-		vector<int> topologies = { (int)inputs.size(),400,(int)target.size() }; 
-		DeepNetwork* Net = new DeepNetwork(topologies, learning_rates);
-		Net->setCurrentInput(inputs);
+		Net->setCurrentInput(flatVec);
 		Net->setTarget(target);
 		Net->forwardPropogation();
 		Net->setErrors();
@@ -131,12 +129,12 @@ int main()
 		//-----------------------------------------------------------------------------------------------------
 		// Reshape the gradients in kernal form i.e. for not channels '3' ota widthxheight '11x11' ko array
 		//-----------------------------------------------------------------------------------------------------
-		
-		GeneralMatrix::Matrix* reqGrads = new GeneralMatrix::Matrix(1, flatVec.size(), false); 
+
+		GeneralMatrix::Matrix* reqGrads = new GeneralMatrix::Matrix(1, flatVec.size(), false);
 		GeneralMatrix::Matrix* last_gradiet = GradientMatrices.at(GradientMatrices.size() - 1);
 		GeneralMatrix::Matrix* tranposedWeightMatrices = Net->GetWeightMatrices().at(0)->tranpose();
 		reqGrads = *last_gradiet * tranposedWeightMatrices;
-		volumetricEntity poolGradients; 
+		volumetricEntity poolGradients;
 		int last_pos = 0;
 		int next_pos = filt_width * filt_width - 1;
 		gridEntity temp(filt_width);
@@ -158,43 +156,34 @@ int main()
 			}
 			poolGradients.push_back(temp);
 		}
-		
+
 		//--------------------------------------------------------------------------------------------------------
 		// Unpool the gardients from their pooled map to get the gradients to the filter maps
 		//--------------------------------------------------------------------------------------------------------
-		
-		std::vector<gridEntity> filterMapGradients(l1.get_all_training_filter().size(),gridEntity(l1.get_output_feature_maps().at(0).size(), std::vector<double>(l1.get_output_feature_maps().at(0).at(0).size(), 0.0)));
-		
+
+		std::vector<gridEntity> filterMapGradients(l1.get_all_training_filter().size(), gridEntity(l1.get_output_feature_maps().at(0).size(), std::vector<double>(l1.get_output_feature_maps().at(0).at(0).size(), 0.0)));
+
 		volumetricEntity unpooledGradients;
 		for (int ch = 0; ch < chanels; ch++)
 		{
-			gridEntity unpooled_map = l1.unpool_without_indices(poolGradients[ch], all_final_set_of_filter_maps[ch], 2,2,2);
+			gridEntity unpooled_map = l1.unpool_without_indices(poolGradients[ch], all_final_set_of_filter_maps[ch], 2, 2, 2);
 			unpooledGradients.push_back(unpooled_map);
 		}
 
-		
+
 		//-----------------------------------------------------------------------------------------------------
 		// Get the gradients for filters from the gradients to the filtermaps we just obtained
 		// -----------------------------------------------------------------------------------------------------
 		std::vector<gridEntity> inputChannels = l1.get_input_channels();
-		std::vector<volumetricEntity> filterGradients = l1.compute_filter_gradients(inputChannels,unpooledGradients,1);
-		
+		std::vector<volumetricEntity> filterGradients = l1.compute_filter_gradients(inputChannels, unpooledGradients, 1);
+
 		//-----------------------------------------------------------------------------------------------------
 		// Update the filters based on the computed Gradients
 		//-----------------------------------------------------------------------------------------------------
-		double learningRate = 0.01; // Example learning rate
-		l1.update_filters_with_gradients(l1.get_all_training_filter(),filterGradients,learningRate);
-		std::cout << "Network info: " << std::endl;
-		std::cout << "No. of feature maps from initial CL : "<<l1.get_feature_map().size() << std::endl;
-		std::cout << "No. of traniable filters : " << l1.get_all_training_filter().size() << std::endl;
-		std::cout << "Dimention of trainable filter :" <<l1.get_all_training_filter().at(0).size() << "x"<< l1.get_all_training_filter().at(0).at(0).size()<<"x"<< l1.get_all_training_filter().at(0).at(0).at(0).size() << std::endl;
-		std::cout << "No. of filters maps after application of trainable filters : " <<l1.get_output_feature_maps().size()<< std::endl;
-		std::cout << "Dimention of filter map after application of trainable filters : " << l1.get_output_feature_maps().at(0).size()<<"x"<< l1.get_output_feature_maps().at(0).at(0).size() << std::endl;
-		std::cout << "No. of pooled maps for those filter maps :" << l1.get_final_pool_maps().size() << std::endl;
-		std::cout << "Dimention of pooled map :" <<l1.get_final_pool_maps().at(0).size()<<"x"<< l1.get_final_pool_maps().at(0).at(0).size() << std::endl;
+
+		l1.update_filters_with_gradients(l1.get_all_training_filter(), filterGradients, learningRate);
+		std::cout << "Error : " << Net->getGlobalError() << std::endl;
+		std::cout << "Softmax Values : " << std::endl;
+		Net->GetLayer(2)->convertTOMatrixActivatedVal()->printToConsole();
 	}
-
-	
 }
-
-

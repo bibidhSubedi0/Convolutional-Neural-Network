@@ -1,6 +1,6 @@
 #pragma once
 #include<string>
-#include "all_includes.hpp"
+#include "../cnn/all_includes.hpp"
 class ImageInput
 {
 	cv::Mat image;

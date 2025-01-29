@@ -1,4 +1,4 @@
-#include "Matrix.hpp"
+#include "../cnn/Matrix.hpp"
 
 gridEntity CNN_Matrix::Matrix::convolute(gridEntity input_image_section, gridEntity filter, int stride)
 {

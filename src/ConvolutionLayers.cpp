@@ -1,6 +1,6 @@
-#include "ConvolutionLayers.hpp"
-#include "Matrix.hpp"
-#include "ImageInput.hpp"
+#include "../cnn/ConvolutionLayers.hpp"
+#include "../cnn/Matrix.hpp"
+#include "../cnn/ImageInput.hpp"
 
 ConvolutionLayers::ConvolutionLayers(gridEntity main_image) : raw_image(main_image) {
 	// Define predefined_filters for the network

@@ -1,5 +1,5 @@
-#include "ImageInput.hpp"
-#include "all_includes.hpp"
+#include "../cnn/ImageInput.hpp"
+#include "../cnn/all_includes.hpp"
 
 
 

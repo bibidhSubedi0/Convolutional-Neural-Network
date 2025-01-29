@@ -1,9 +1,9 @@
-#include "Layer.hpp"
+#include "../cnn/Layer.hpp"
 #include <assert.h>
 #include <cmath>
 #include <algorithm>
 #include <fstream>
-#include"DeepNetwork.hpp"
+#include"../cnn/DeepNetwork.hpp"
 
 
 DeepNetwork::DeepNetwork(vector<int> topology, double lr)

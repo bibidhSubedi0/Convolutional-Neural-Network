@@ -1,9 +1,9 @@
 #ifndef _LAYER_HPP_
 #define _LAYER_HPP_
 
-#include"Neuron.h"
+#include"../cnn/Neuron.h"
 #include<vector>
-#include"Matrix.hpp"
+#include"../cnn/Matrix.hpp"
 using namespace std;
 
 class Layer

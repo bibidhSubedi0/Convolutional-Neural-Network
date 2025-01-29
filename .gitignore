@@ -35,8 +35,3 @@ opencv/*.dll
 *.swp
 *.bak
 *.db
-
-# 🔹 Ignore Python virtual environments (if using Python scripts)
-venv/
-__pycache__/
-*.pyc

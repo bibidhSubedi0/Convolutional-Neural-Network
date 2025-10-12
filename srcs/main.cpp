@@ -5,7 +5,7 @@
 
 int main()
 {
-	ImageInput* img = new ImageInput("../resources/drawing.png", CV_8UC1);
+	ImageInput* img = new ImageInput("resource/drawing.png", CV_8UC1);
 	img->showImage();
 
 	// Get matrixified pixel values for the images

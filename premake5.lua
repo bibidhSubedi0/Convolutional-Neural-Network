@@ -5,17 +5,28 @@ workspace "ConvolutionalNeuralNetwork"
 project "ConvolutionalNeuralNetwork"
     kind "ConsoleApp"
     language "C++"
-    cppdialect "C++20"  -- Upgraded to C++20
+    cppdialect "C++20"
     targetdir "bin/%{cfg.buildcfg}"
     objdir "bin-int/%{cfg.buildcfg}"
 
-    files { "src/**.cpp", "include/cnn/**.hpp", "include/cnn/**.h" }
-    includedirs { "include/cnn" }
+    files { "srcs/**.cpp", "includes/cnn/**.hpp", "includes/cnn/**.h" }
+    includedirs {
+        "includes/cnn",
+        "D:/opencv/build/include"       
+    }
+
+    libdirs { "D:/opencv/build/x64/vc16/lib" }
 
     filter "configurations:Debug"
         defines { "DEBUG" }
         symbols "On"
+        links {
+            "opencv_world4100d.lib"
+        }
 
     filter "configurations:Release"
         defines { "NDEBUG" }
         optimize "On"
+        links {
+            "opencv_world4100.lib"
+        }

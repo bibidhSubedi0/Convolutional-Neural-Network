@@ -1,54 +1,42 @@
-#include"../cnn/Neuron.h"
-#include<math.h>
+#include "../cnn/Neuron.h"
+#include <math.h>
 using namespace std;
 
 Neuron::Neuron(double val)
 {
     this->val = val;
-    //Activate();
-    //Derive();
 }
 
 void Neuron::setVal(double val)
 {
     this->val = val;
-    //Activate();
-    //Derive();
 }
-
 
 void Neuron::Activate()
 {
-    // Using the relu
-    // this->activatedVal = this->val > 0 ? this->val : 0;
-
-    // Leaky Relu perfoms extermly well
-    // If value is positive, use it, otherwise multiply by a small constant alpha (e.g., 0.01)
+    // Leaky ReLU activation
     this->activatedVal = this->val > 0 ? this->val : 0.01 * this->val;
 }
 
 void Neuron::Derive()
 {
-    // Derivative for relu
-    // this->derivedVal = this->val > 0 ? 0 : 1;
-
-
-    // 1 if value > 0, else alpha (e.g., 0.01) for negative values
-    this->derivedVal = this->val > 0 ? 1 : 0.01;  // Assuming alpha = 0.01
+    // Derivative of Leaky ReLU
+    this->derivedVal = this->val > 0 ? 1.0 : 0.01;
 }
 
 void Neuron::ActivateFinal()
 {
-    // Sigmoid activation function: 1 / (1 + exp(-x))
-    this->activatedVal = 1.0 / (1.0 + exp(-1 * this->val));
-
+    // For output layer - softmax will be applied externally
+    // Just store the raw value for now
+    this->activatedVal = this->val;
 }
 
 void Neuron::DeriveFinal()
 {
-    // Derivative of Sigmoid: sigma(x) * (1 - sigma(x))
-    this->derivedVal = this->activatedVal * (1.0 - this->activatedVal);
-
+    // For softmax + cross-entropy, the derivative simplifies to (y_pred - y_true)
+    // This will be set externally during backprop
+    // Initialize to 1.0 as a placeholder
+    this->derivedVal = 1.0;
 }
 
 void Neuron::setActivatedVal(double val)
@@ -56,4 +44,22 @@ void Neuron::setActivatedVal(double val)
     this->activatedVal = val;
 }
 
+void Neuron::setDerivedVal(double val)
+{
+    this->derivedVal = val;
+}
 
+double Neuron::getVal()
+{
+    return this->val;
+}
+
+double Neuron::getActivatedVal()
+{
+    return this->activatedVal;
+}
+
+double Neuron::getDerivedVal()
+{
+    return this->derivedVal;
+}

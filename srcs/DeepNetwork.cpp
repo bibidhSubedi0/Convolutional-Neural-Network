@@ -3,8 +3,7 @@
 #include <cmath>
 #include <algorithm>
 #include <fstream>
-#include"../cnn/DeepNetwork.hpp"
-
+#include "../cnn/DeepNetwork.hpp"
 
 DeepNetwork::DeepNetwork(vector<int> topology, double lr)
 {
@@ -14,21 +13,16 @@ DeepNetwork::DeepNetwork(vector<int> topology, double lr)
 
     for (int i = 0; i < topologySize; i++)
     {
-
-        // If it is last layer treat it seperately
         if (i == topologySize - 1)
         {
-            Layer* l = new Layer(topology[i], 1);
+            Layer* l = new Layer(topology[i], true);
             this->layers.push_back(l);
         }
-
-        // If it is not last layer
         else {
             Layer* l = new Layer(topology[i]);
             this->layers.push_back(l);
         }
     }
-
 
     for (int i = 0; i < topologySize - 1; i++)
     {
@@ -41,9 +35,6 @@ DeepNetwork::DeepNetwork(vector<int> topology, double lr)
 
     histErrors.push_back(1);
 }
-
-
-
 
 double DeepNetwork::lastEpoachError()
 {
@@ -62,12 +53,9 @@ void DeepNetwork::printHistErrors()
 void DeepNetwork::saveHistErrors()
 {
     ofstream outFile("error_vs_epoch.csv");
-
     if (outFile.is_open())
     {
-
         outFile << "Epoch,Error\n";
-
         for (size_t i = 0; i < this->histErrors.size(); ++i)
         {
             outFile << i << "," << histErrors[i] << "\n";
@@ -90,8 +78,6 @@ double DeepNetwork::getLearningRate()
     return learningRate;
 }
 
-
-
 void DeepNetwork::setTarget(vector<double> target)
 {
     this->target = target;
@@ -99,20 +85,6 @@ void DeepNetwork::setTarget(vector<double> target)
 
 void DeepNetwork::printErrors()
 {
-    // cout<<"This Iteration Error"<<endl;
-    // for(auto err : this->errors)
-    // {
-    //     cout<<"Ex : "<<err<<"  ";
-    // }
-    // cout<<endl;
-
-    // cout<<"Historical Errors"<<endl;
-    // for(auto err : this->errors)
-    // {
-    //     cout<<"Eh : "<<err<<"  ";
-    // }
-    // cout<<endl;
-
     cout << "Total Error : " << this->error << endl;
 }
 
@@ -130,14 +102,12 @@ void DeepNetwork::setCurrentInput(vector<double> input)
 
 void DeepNetwork::printToConsole()
 {
-    // Print the inputs to the DeepNetwork
     for (int i = 0; i < input.size(); i++)
     {
         cout << input.at(i) << "\t\t";
     }
     cout << endl;
 
-    // Print the outputs to the DeepNetwork
     for (int i = 0; i < layers.at(layers.size() - 1)->getSize(); i++)
     {
         cout << layers.at(layers.size() - 1)->getNeurons().at(i)->getActivatedVal() << "\t";
@@ -177,8 +147,6 @@ void DeepNetwork::printBiases()
     }
 }
 
-
-
 void DeepNetwork::setErrors()
 {
     if (this->target.size() == 0)
@@ -194,54 +162,27 @@ void DeepNetwork::setErrors()
     }
 
     errors.resize(target.size());
-
     this->error = 0;
     int outputLayerIndx = this->layers.size() - 1;
     vector<Neuron*> outputNeurons = this->layers[outputLayerIndx]->getNeurons();
-    errorDerivatives.resize(errors.size());
 
-    // -------------------------MSE---------------------------------------------
-    //for (int i = 0; i < target.size(); i++)
-    //{
-    //    double req = target[i];
-    //    double act = outputNeurons[i]->getActivatedVal();
-    //    this->errors[i] = 0.5 * pow(abs((req - act)), 2);
-    //    errorDerivatives[i] = act - req;
-    //    this->error += errors[i];
-    //}
-
-
-
-    //------------------------Cross Entropy----------------------------------------
     for (int i = 0; i < target.size(); i++)
     {
         double act = target[i];
         double pred = outputNeurons[i]->getActivatedVal();
 
-        double epsilon = 1e-15; // Small value to avoid instability
+        double epsilon = 1e-15;
         pred = std::max(epsilon, std::min(1.0 - epsilon, pred));
 
         this->errors[i] = -act * std::log(pred);
-
-
-        // These are baseically the gadeints
-        errorDerivatives[i] = -((act / pred) - ((1 - act) / (1 - pred)));
-
-        // This is the total cross entropy error
-        this->error += this->errors[i]; //
-        // std::cout<<act<<"\t"<<pred<<"\t" << this->error << std::endl;
+        this->error += this->errors[i];
     }
-
-
-
 }
 
 double DeepNetwork::getGlobalError()
 {
     return this->error;
 }
-
-
 
 void DeepNetwork::saveThisError(double error)
 {
@@ -250,77 +191,51 @@ void DeepNetwork::saveThisError(double error)
 
 void DeepNetwork::gardientComputation()
 {
-
-    GeneralMatrix::Matrix* gradients;
-    GeneralMatrix::Matrix* DerivedValuesFromOtoH;
-    GeneralMatrix::Matrix* lastGradient;
-    GeneralMatrix::Matrix* tranposedWeightMatrices;
-    GeneralMatrix::Matrix* hiddenDerived;
     int outputLayerIndex = this->topology.size() - 1;
-    vector<GeneralMatrix::Matrix*> allGradients;
 
-    /*
-        -----------------------------------------VVIP NOTE ---------------------------------------------
-        So turns out, using softmax with Cross Entropy is extermly good. When we used the sigmoid activation with cross entropy we used to calculate the gradiets as
-        
-        gradient_for_ith_otuput(gi) = Cross_entropy_loss_derivative(yi) x sigmoid_derivative(yi)
+    // Clear old gradients
+    for (auto g : this->GradientMatrices) {
+        delete g;
+    }
+    this->GradientMatrices.clear();
 
-        but now as we are using softmax, the equation neatly cancels out to just gradient  = predicted - actual output
-    */
+    // Output layer gradient (softmax + cross-entropy derivative)
+    GeneralMatrix::Matrix* gradients = new GeneralMatrix::Matrix(1, this->topology.at(outputLayerIndex), false);
 
-
-    gradients = new GeneralMatrix::Matrix(
-        1,
-        this->topology.at(outputLayerIndex),
-        false);
-   
-    
-    
     size_t n = this->layers.at(outputLayerIndex)->getNeurons().size();
     vector<double> trueLabel = this->target;
     for (size_t i = 0; i < n; i++) {
-        gradients->setVal(0, i, this->layers.at(outputLayerIndex)->getNeuron(i)->getActivatedVal() - trueLabel[i]);
+        double pred = this->layers.at(outputLayerIndex)->getNeuron(i)->getActivatedVal();
+        gradients->setVal(0, i, pred - trueLabel[i]);
     }
 
-    GeneralMatrix::Matrix* temp = new GeneralMatrix::Matrix(1, this->topology.at(outputLayerIndex), false);
-    allGradients.push_back(*temp + gradients);
-    
-    
-    
+    this->GradientMatrices.push_back(gradients);
+
+    // Backpropagate through hidden layers
     for (int i = (outputLayerIndex - 1); i > 0; i--)
     {
-        GeneralMatrix::Matrix* t = new GeneralMatrix::Matrix(1, topology.at(i), false);
-        lastGradient = new GeneralMatrix::Matrix(*gradients);
-        delete gradients;
+        GeneralMatrix::Matrix* lastGradient = this->GradientMatrices.back();
 
-        tranposedWeightMatrices = this->weightMatrices.at(i)->tranpose();
-        gradients = new GeneralMatrix::Matrix(
-            1,
-            this->topology.at(i),
-            false);
+        GeneralMatrix::Matrix* transposedWeightMatrices = this->weightMatrices.at(i)->tranpose();
+        GeneralMatrix::Matrix* backpropGrad = *lastGradient * transposedWeightMatrices;
 
+        GeneralMatrix::Matrix* hiddenDerived = this->layers.at(i)->convertTOMatrixDerivedVal();
 
-        gradients = *lastGradient * tranposedWeightMatrices;
-
-        hiddenDerived = this->layers.at(i)->convertTOMatrixDerivedVal();
-
+        // Element-wise multiplication with derivatives
+        GeneralMatrix::Matrix* newGradients = new GeneralMatrix::Matrix(1, hiddenDerived->getNumCols(), false);
         for (int colCounter = 0; colCounter < hiddenDerived->getNumCols(); colCounter++)
         {
-            double g = gradients->getVal(0, colCounter) * hiddenDerived->getVal(0, colCounter);
-            gradients->setVal(0, colCounter, g);
+            double g = backpropGrad->getVal(0, colCounter) * hiddenDerived->getVal(0, colCounter);
+            newGradients->setVal(0, colCounter, g);
         }
-        allGradients.push_back(*t + gradients);
 
-        delete lastGradient;
-        delete tranposedWeightMatrices;
+        this->GradientMatrices.push_back(newGradients);
+
+        delete transposedWeightMatrices;
         delete hiddenDerived;
+        delete backpropGrad;
     }
-
-    this->GradientMatrices = allGradients;
 }
-
-
-
 
 std::vector<GeneralMatrix::Matrix*> DeepNetwork::GetWeightMatrices()
 {
@@ -331,184 +246,103 @@ void DeepNetwork::updateWeights()
 {
     vector<GeneralMatrix::Matrix*> newWeights;
     vector<GeneralMatrix::Matrix*> newBiases;
-    GeneralMatrix::Matrix* deltaWeights;
-    GeneralMatrix::Matrix* gradients;
 
-    GeneralMatrix::Matrix* gradientsTransposed;
-    GeneralMatrix::Matrix* PreviousLayerActivatedVals;
-    GeneralMatrix::Matrix* tempNewWeights;
-    GeneralMatrix::Matrix* tempNewBiases;
-    GeneralMatrix::Matrix* lastGradient;
-    GeneralMatrix::Matrix* tranposedWeightMatrices;
-    GeneralMatrix::Matrix* hiddenDerived;
-    GeneralMatrix::Matrix* transposedHidden;
-    int outputLayerIndex = topology.size() - 1;
+    // GradientMatrices[0] = output layer gradient
+    // GradientMatrices[1] = last hidden layer gradient
+    // ... and so on (reversed order)
 
-    gradients = this->GradientMatrices[0];
-    gradientsTransposed = gradients->tranpose();
-    PreviousLayerActivatedVals = this->layers.at(outputLayerIndex - 1)->convertTOMatrixActivatedVal();
-    deltaWeights = new GeneralMatrix::Matrix(
-        gradientsTransposed->getNumRow(),
-        PreviousLayerActivatedVals->getNumCols(),
-        false);
+    int numLayers = this->weightMatrices.size();
 
-    deltaWeights = *gradientsTransposed * PreviousLayerActivatedVals;
-
-    tempNewWeights = new GeneralMatrix::Matrix(
-        this->topology.at(outputLayerIndex - 1),
-        this->topology.at(outputLayerIndex),
-        false);
-
-
-    for (int r = 0; r < this->topology.at(outputLayerIndex - 1); r++)
+    for (int layerIdx = 0; layerIdx < numLayers; layerIdx++)
     {
-        for (int c = 0; c < this->topology.at(outputLayerIndex); c++)
-        {
+        // Get gradient for this layer (they're stored in reverse order)
+        int gradIdx = layerIdx;
+        GeneralMatrix::Matrix* gradients = this->GradientMatrices[gradIdx];
 
-            double originalValue = this->weightMatrices.at(outputLayerIndex - 1)->getVal(r, c);
-            double deltaValue = deltaWeights->getVal(c, r);
-            deltaValue = this->learningRate * deltaValue;
+        // Get activations from previous layer
+        int actualLayerIdx = numLayers - 1 - layerIdx;
+        GeneralMatrix::Matrix* prevLayerActivations;
 
-            tempNewWeights->setVal(r, c, (originalValue - deltaValue));
+        if (actualLayerIdx == 0) {
+            prevLayerActivations = this->layers.at(0)->convertTOMatrixVal();
         }
-    }
+        else {
+            prevLayerActivations = this->layers.at(actualLayerIdx)->convertTOMatrixActivatedVal();
+        }
 
-    // Update biases
-    tempNewBiases = new GeneralMatrix::Matrix(
-        1, // Bias is a row vector
-        this->topology.at(outputLayerIndex),
-        false);
+        // Compute weight gradients: prevActivations^T * gradient
+        GeneralMatrix::Matrix* prevTransposed = prevLayerActivations->tranpose();
+        GeneralMatrix::Matrix* deltaWeights = *prevTransposed * gradients;
 
-    for (int c = 0; c < this->topology.at(outputLayerIndex); c++)
-    {
-        double originalBias = this->BaisMatrices.at(outputLayerIndex - 1)->getVal(0, c);
-        double deltaBias = gradients->getVal(0, c); // Gradient for bias
-        deltaBias = this->learningRate * deltaBias;
-
-        tempNewBiases->setVal(0, c, (originalBias - deltaBias));
-    }
-    newBiases.push_back(new GeneralMatrix::Matrix(*tempNewBiases));
-
-
-    newWeights.push_back(new GeneralMatrix::Matrix(*tempNewWeights));
-    delete gradientsTransposed;
-    delete PreviousLayerActivatedVals;
-    delete tempNewWeights;
-    delete tempNewBiases;
-    delete deltaWeights;
-
-
-
-    int gmctr = 1;
-
-    for (int i = (outputLayerIndex - 1); i > 0; i--)
-    {
-        lastGradient = new GeneralMatrix::Matrix(*gradients);
-        delete gradients;
-
-        tranposedWeightMatrices = this->weightMatrices.at(i)->tranpose();
-
-        gradients = new GeneralMatrix::Matrix(
-            lastGradient->getNumRow(),
-            tranposedWeightMatrices->getNumCols(),
+        // Create new weight matrix
+        GeneralMatrix::Matrix* tempNewWeights = new GeneralMatrix::Matrix(
+            this->weightMatrices.at(actualLayerIdx)->getNumRow(),
+            this->weightMatrices.at(actualLayerIdx)->getNumCols(),
             false);
 
-        gradients = *lastGradient * tranposedWeightMatrices;
-
-        hiddenDerived = this->layers.at(i)->convertTOMatrixDerivedVal();
-
-        for (int colCounter = 0; colCounter < hiddenDerived->getNumCols(); colCounter++)
-        {
-            double g = gradients->getVal(0, colCounter) * hiddenDerived->getVal(0, colCounter);
-            gradients->setVal(0, colCounter, g);
-        }
-        gradients = GradientMatrices[gmctr];
-        gmctr++;
-
-        if (i == 1)
-        {
-            PreviousLayerActivatedVals = this->layers.at(0)->convertTOMatrixVal();
-        }
-        else
-        {
-            PreviousLayerActivatedVals = this->layers.at(i - 1)->convertTOMatrixActivatedVal();
-        }
-
-        transposedHidden = PreviousLayerActivatedVals->tranpose();
-
-        deltaWeights = new GeneralMatrix::Matrix(
-            transposedHidden->getNumRow(),
-            gradients->getNumCols(),
-            false);
-
-        deltaWeights = *transposedHidden * gradients;
-
-        tempNewWeights = new GeneralMatrix::Matrix(
-            this->weightMatrices.at(i - 1)->getNumRow(),
-            this->weightMatrices.at(i - 1)->getNumCols(),
-            false);
-
-        // Update weights
+        // Update weights with gradient clipping
         for (int r = 0; r < tempNewWeights->getNumRow(); r++)
         {
             for (int c = 0; c < tempNewWeights->getNumCols(); c++)
             {
-                double originalValue = this->weightMatrices.at(i - 1)->getVal(r, c);
+                double originalValue = this->weightMatrices.at(actualLayerIdx)->getVal(r, c);
                 double deltaValue = deltaWeights->getVal(r, c);
 
-                deltaValue = this->learningRate * deltaValue;
+                // Gradient clipping
+                deltaValue = std::max(-1.0, std::min(1.0, deltaValue));
 
-                tempNewWeights->setVal(r, c, (originalValue - deltaValue));
+                double update = this->learningRate * deltaValue;
+                tempNewWeights->setVal(r, c, originalValue - update);
             }
         }
-        newWeights.push_back(new GeneralMatrix::Matrix(*tempNewWeights));
+        newWeights.push_back(tempNewWeights);
 
         // Update biases
-        tempNewBiases = new GeneralMatrix::Matrix(
-            1, // Bias is a row vector
-            gradients->getNumCols(),
+        GeneralMatrix::Matrix* tempNewBiases = new GeneralMatrix::Matrix(
+            1,
+            this->topology.at(actualLayerIdx + 1),
             false);
 
-        for (int c = 0; c < gradients->getNumCols(); c++)
+        for (int c = 0; c < tempNewBiases->getNumCols(); c++)
         {
-            double originalBias = this->BaisMatrices.at(i - 1)->getVal(0, c);
+            double originalBias = this->BaisMatrices.at(actualLayerIdx)->getVal(0, c);
             double deltaBias = gradients->getVal(0, c);
-            deltaBias = this->learningRate * deltaBias;
 
-            tempNewBiases->setVal(0, c, (originalBias - deltaBias));
+            // Gradient clipping
+            deltaBias = std::max(-1.0, std::min(1.0, deltaBias));
+
+            double update = this->learningRate * deltaBias;
+            tempNewBiases->setVal(0, c, originalBias - update);
         }
-        newBiases.push_back(new GeneralMatrix::Matrix(*tempNewBiases));
+        newBiases.push_back(tempNewBiases);
 
-        // Clean up
-        delete lastGradient;
-        delete tranposedWeightMatrices;
-        delete hiddenDerived;
-        delete PreviousLayerActivatedVals;
-        delete transposedHidden;
-        delete tempNewWeights;
-        delete tempNewBiases;
+        delete prevTransposed;
+        delete prevLayerActivations;
         delete deltaWeights;
     }
 
+    // Replace old weights and biases
     for (int i = 0; i < this->weightMatrices.size(); i++)
     {
         delete this->weightMatrices[i];
+        delete this->BaisMatrices[i];
     }
 
     this->weightMatrices.clear();
+    this->BaisMatrices.clear();
+
+    // Reverse because we computed them from output to input
     reverse(newWeights.begin(), newWeights.end());
-    weightMatrices = newWeights;
+    reverse(newBiases.begin(), newBiases.end());
+
+    this->weightMatrices = newWeights;
+    this->BaisMatrices = newBiases;
 }
-
-
-
-
 
 std::vector<GeneralMatrix::Matrix*> DeepNetwork::averageGradients(vector<vector<GeneralMatrix::Matrix*>> accgrad)
 {
     size_t numColumns = accgrad[0].size();
     vector<GeneralMatrix::Matrix*> averageMatrices(numColumns, nullptr);
-
 
     for (size_t col = 0; col < numColumns; ++col)
     {
@@ -522,9 +356,6 @@ std::vector<GeneralMatrix::Matrix*> DeepNetwork::averageGradients(vector<vector<
             }
         }
     }
-
-
-
 
     for (int avgmahunuparne = 0; avgmahunuparne < numColumns; avgmahunuparne++)
     {
@@ -544,8 +375,6 @@ std::vector<GeneralMatrix::Matrix*> DeepNetwork::averageGradients(vector<vector<
     return averageMatrices;
 }
 
-
-
-std::vector<GeneralMatrix::Matrix*> DeepNetwork::GetGradientMatrices(){
+std::vector<GeneralMatrix::Matrix*> DeepNetwork::GetGradientMatrices() {
     return this->GradientMatrices;
 }

@@ -229,33 +229,49 @@ volumetricEntity& ConvolutionLayers::get_final_pool_maps()
 }
 
 std::vector<volumetricEntity> ConvolutionLayers::compute_filter_gradients(
-    const std::vector<gridEntity>& inputChannels,        // Input to the convolutional layer
-    const std::vector<gridEntity>& outputGradients,      // Gradients w.r.t output (from unpooling)
-    int stride = 1                                       // Stride used during convolution
+    const std::vector<gridEntity>& inputChannels,
+    const std::vector<gridEntity>& outputGradients,
+    int stride = 1
 ) {
     std::vector<volumetricEntity> filterGradients;
-
     int numFilters = outputGradients.size();
     int numChannels = inputChannels.size();
 
-    // Loop through each filter
     for (int filterIdx = 0; filterIdx < numFilters; ++filterIdx) {
         volumetricEntity filterGradient(numChannels);
 
-        // Loop through each input channel
         for (int channelIdx = 0; channelIdx < numChannels; ++channelIdx) {
-            // Perform convolution between the input channel and output gradient
-            gridEntity gradient = apply_filter_universal(
-                inputChannels[channelIdx],
-                outputGradients[filterIdx],
-                stride
-            );
+            const gridEntity& input = inputChannels[channelIdx];
+            const gridEntity& grad = outputGradients[filterIdx];
 
-            // Store the resulting gradient
+            int filterHeight = 3;  // Your filter size
+            int filterWidth = 3;
+
+            gridEntity gradient(filterHeight, std::vector<double>(filterWidth, 0.0));
+
+            // Compute cross-correlation
+            for (int fh = 0; fh < filterHeight; ++fh) {
+                for (int fw = 0; fw < filterWidth; ++fw) {
+                    double sum = 0.0;
+
+                    for (int i = 0; i < grad.size(); ++i) {
+                        for (int j = 0; j < grad[0].size(); ++j) {
+                            int inputRow = i * stride + fh;
+                            int inputCol = j * stride + fw;
+
+                            if (inputRow < input.size() && inputCol < input[0].size()) {
+                                sum += input[inputRow][inputCol] * grad[i][j];
+                            }
+                        }
+                    }
+
+                    gradient[fh][fw] = sum;
+                }
+            }
+
             filterGradient[channelIdx] = gradient;
         }
 
-        // Append the filter gradient (volumetric entity)
         filterGradients.push_back(filterGradient);
     }
 

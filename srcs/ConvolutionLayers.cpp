@@ -1,47 +1,53 @@
 #include "../cnn/ConvolutionLayers.hpp"
 #include "../cnn/Matrix.hpp"
 #include "../cnn/ImageInput.hpp"
+#include <random>
+#include <cmath>
 
 ConvolutionLayers::ConvolutionLayers(gridEntity main_image) : raw_image(main_image) {
-	// Define predefined_filters for the network
+    // Define predefined_filters for the network
     this->predefined_filters.push_back(Filters::STRONG_VERTICAL_EDGE_DETECTION);
     this->predefined_filters.push_back(Filters::STRONG_HORIZONTAL_EDGE_DETECTION);
     this->predefined_filters.push_back(Filters::STRONG_DIAGONAL_EDGE_DETECTION);
-    
-    this->no_of_filters_used = 3;
 
-    // Initilize the input channel to next convolution layer, values will put put after pooling is completed from the first layer
+    this->no_of_filters_used = 3;
     input_channels.resize(this->no_of_filters_used);
 
+    // Initialize trainable filters with Xavier/He initialization
+    this->no_of_filters_in_second_CL = 3;
 
+    // Use proper initialization: Xavier initialization
+    std::random_device rd;
+    std::mt19937 gen(rd());
 
-    // Initilize the trainable filters
-    // ------------------------------------------------------------------
-    // Add a mechnism to intilize the filters to some random values
-    // ------------------------------------------------------------------
+    // Xavier initialization: std = sqrt(2.0 / (fan_in + fan_out))
+    // For 3x3 filters with 3 input channels: fan_in = 3*3*3 = 27
+    double fan_in = 3.0 * 3.0 * this->no_of_filters_used;
+    double fan_out = 3.0 * 3.0 * this->no_of_filters_in_second_CL;
+    double std_dev = std::sqrt(2.0 / (fan_in + fan_out));
 
-    // Dimention rows = 3, cols =3, depth = no.of filters
-    // i will use 4 filter ub second CL so i will use 4 3x3xN filters where N is the no of. filters in last layer
-    
-    this->no_of_filters_in_second_CL= 3;
+    std::normal_distribution<double> distribution(0.0, std_dev);
 
-
-    // initilize the filters to some random values
     for (int i = 0; i < this->no_of_filters_in_second_CL; i++)
     {
         volumetricEntity temp;
-        
-        // Initilize each filter to a random number
+
         for (int dep = 0; dep < this->no_of_filters_used; dep++)
         {
-            gridEntity sheet;
-            CNN_Matrix::Matrix::randomize_all_values(sheet, 3, 3);
+            gridEntity sheet(3, std::vector<double>(3));
+
+            // Initialize with Xavier distribution
+            for (int row = 0; row < 3; row++) {
+                for (int col = 0; col < 3; col++) {
+                    sheet[row][col] = distribution(gen);
+                }
+            }
+
             temp.push_back(sheet);
         }
 
         this->training_filters.push_back(temp);
     }
-
 }
 
 std::vector<gridEntity> ConvolutionLayers::get_all_predefined_filter()
@@ -51,30 +57,25 @@ std::vector<gridEntity> ConvolutionLayers::get_all_predefined_filter()
 
 void ConvolutionLayers::apply_normalaization_universal(gridEntity& to_normailize)
 {
-    // idk if this will work but fuck it
     int min = 0;
     int max = 800;
 
-
-        for (int i = 0; i < to_normailize.size(); i++)
+    for (int i = 0; i < to_normailize.size(); i++)
+    {
+        for (int j = 0; j < to_normailize.at(0).size(); j++)
         {
-            for (int j = 0; j < to_normailize.at(0).size(); j++)
-            {
-                to_normailize.at(i).at(j) = (to_normailize.at(i).at(j) - min) / (max - min);
-            }
+            to_normailize.at(i).at(j) = (to_normailize.at(i).at(j) - min) / (max - min);
         }
-    
+    }
 }
 
-
-gridEntity ConvolutionLayers::apply_filter_universal(gridEntity image, gridEntity filt, int stride = 1)
+gridEntity ConvolutionLayers::apply_filter_universal(gridEntity image, gridEntity filt, int stride)
 {
     gridEntity f_map = CNN_Matrix::Matrix::convolute(image, filt, stride);
     return f_map;
-
 }
 
-void ConvolutionLayers::activate_feature_map_using_RELU_universal(gridEntity &to_activate)
+void ConvolutionLayers::activate_feature_map_using_RELU_universal(gridEntity& to_activate)
 {
     for (int i = 0; i < to_activate.size(); i++)
     {
@@ -84,10 +85,8 @@ void ConvolutionLayers::activate_feature_map_using_RELU_universal(gridEntity &to
             {
                 to_activate.at(i).at(j) = 0;
             }
-
         }
     }
-    
 }
 
 void ConvolutionLayers::activate_feature_map_using_SIGMOID(gridEntity& to_activate)
@@ -99,32 +98,28 @@ void ConvolutionLayers::activate_feature_map_using_SIGMOID(gridEntity& to_activa
             to_activate.at(i).at(j) = (1) / (1 + pow(2.71828, -to_activate.at(i).at(j)));
         }
     }
-
 }
 
-gridEntity ConvolutionLayers::unpool_without_indices( gridEntity& pooled_gradients,  gridEntity& original_filter_map, int stride = 2, int poolHeight = 2, int poolWidth = 2)
+gridEntity ConvolutionLayers::unpool_without_indices(gridEntity& pooled_gradients, gridEntity& original_filter_map,
+    int stride, int poolHeight, int poolWidth)
 {
-    // Get dimensions of the original feature map
     int originalHeight = original_filter_map.size();
     int originalWidth = original_filter_map[0].size();
 
-    // Initialize the unpooled gradient matrix with zeros
     gridEntity unpooled_gradients(originalHeight, std::vector<double>(originalWidth, 0.0));
 
-    // Iterate through the pooled gradients
     for (int i = 0; i < pooled_gradients.size(); i++)
     {
         for (int j = 0; j < pooled_gradients[0].size(); j++)
         {
-            // Identify the pooling window in the original feature map
             int startRow = i * stride;
             int startCol = j * stride;
 
             int endRow = std::min(startRow + poolHeight, originalHeight);
             int endCol = std::min(startCol + poolWidth, originalWidth);
 
-            // Find the position of the maximum value in the pooling window
-            double max_val = -1e9; // Use a very small number as initial max
+            // Find max position
+            double max_val = -1e9;
             int maxRow = startRow, maxCol = startCol;
 
             for (int row = startRow; row < endRow; row++)
@@ -140,7 +135,6 @@ gridEntity ConvolutionLayers::unpool_without_indices( gridEntity& pooled_gradien
                 }
             }
 
-            // Assign the pooled gradient to the max position in the unpooled gradient
             unpooled_gradients[maxRow][maxCol] += pooled_gradients[i][j];
         }
     }
@@ -148,53 +142,40 @@ gridEntity ConvolutionLayers::unpool_without_indices( gridEntity& pooled_gradien
     return unpooled_gradients;
 }
 
-
-
-gridEntity ConvolutionLayers::apply_pooling_univeral(gridEntity to_pool, int stride = 2)
+gridEntity ConvolutionLayers::apply_pooling_univeral(gridEntity to_pool, int stride)
 {
-    // define kernal
     int poolHeight = 2;
     int poolWidth = 2;
 
-    // get dimentions of the feature_map
     int inputHeight = to_pool.size();
     int inputWidth = to_pool[0].size();
 
-
     gridEntity pooled;
-    // Perform pooling
 
     for (int i = 0; i < inputHeight; i += stride)
     {
-
         std::vector<double> pool_row;
         for (int j = 0; j < inputWidth; j += stride)
         {
-
-            double max_val = 0;
+            double max_val = -1e9;  // Changed from 0 to handle negative values
             for (int kh = i; kh < i + poolHeight; kh++)
             {
                 for (int kw = j; kw < j + poolWidth; kw++)
                 {
-
                     if ((kh < inputHeight) && (kw < inputWidth))
                     {
-                        // std::cout << "curr x: " << kh << "  curry y: " << kw << "    :    " << feature.at(kh).at(kw) << std::endl;
-                        max_val = to_pool.at(kh).at(kw) > max_val ? to_pool.at(kh).at(kw) : max_val;
+                        max_val = std::max(max_val, to_pool.at(kh).at(kw));
                     }
                 }
             }
             pool_row.push_back(max_val);
-
         }
         pooled.push_back(pool_row);
     }
     return pooled;
 }
 
-
-
-gridEntity ConvolutionLayers::get_raw_input_image()
+gridEntity& ConvolutionLayers::get_raw_input_image()
 {
     return this->raw_image;
 }
@@ -202,7 +183,6 @@ gridEntity ConvolutionLayers::get_raw_input_image()
 std::vector<gridEntity>& ConvolutionLayers::get_feature_map() {
     return this->feature_maps;
 }
-
 
 std::vector<gridEntity>& ConvolutionLayers::get_pool_map() {
     return this->pool_maps;
@@ -217,23 +197,147 @@ std::vector<volumetricEntity>& ConvolutionLayers::get_all_training_filter()
     return this->training_filters;
 }
 
-volumetricEntity &ConvolutionLayers::get_output_feature_maps()
+volumetricEntity& ConvolutionLayers::get_output_feature_maps()
 {
     return this->ouput_feature_maps;
 }
-
 
 volumetricEntity& ConvolutionLayers::get_final_pool_maps()
 {
     return this->final_pool_maps;
 }
 
+// Helper function to flip a 2D grid (rotate 180 degrees)
+gridEntity flip_grid(const gridEntity& grid) {
+    int rows = grid.size();
+    int cols = grid[0].size();
+    gridEntity flipped(rows, std::vector<double>(cols));
+
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+            flipped[i][j] = grid[rows - 1 - i][cols - 1 - j];
+        }
+    }
+    return flipped;
+}
+
+
+// Add these helper functions to ConvolutionLayers.hpp and ConvolutionLayers.cpp
+
+// Helper: Pad a grid with zeros
+gridEntity pad_grid(const gridEntity& input, int padding) {
+    int newHeight = input.size() + 2 * padding;
+    int newWidth = input[0].size() + 2 * padding;
+
+    gridEntity padded(newHeight, std::vector<double>(newWidth, 0.0));
+
+    for (size_t i = 0; i < input.size(); i++) {
+        for (size_t j = 0; j < input[0].size(); j++) {
+            padded[i + padding][j + padding] = input[i][j];
+        }
+    }
+
+    return padded;
+}
+
+// CRITICAL FIX: Full convolution for backprop (with padding)
+gridEntity ConvolutionLayers::full_convolve(
+    const gridEntity& input,
+    const gridEntity& filter,
+    int stride
+) {
+    int filterSize = filter.size();
+    int padding = filterSize - 1;
+
+    // Flip the filter 180 degrees for proper convolution
+    gridEntity flipped_filter(filterSize, std::vector<double>(filterSize));
+    for (int i = 0; i < filterSize; i++) {
+        for (int j = 0; j < filterSize; j++) {
+            flipped_filter[i][j] = filter[filterSize - 1 - i][filterSize - 1 - j];
+        }
+    }
+
+    // Pad input
+    gridEntity padded_input = pad_grid(input, padding);
+
+    int outputHeight = (padded_input.size() - filterSize) / stride + 1;
+    int outputWidth = (padded_input[0].size() - filterSize) / stride + 1;
+
+    gridEntity output(outputHeight, std::vector<double>(outputWidth, 0.0));
+
+    for (int i = 0; i < outputHeight; i++) {
+        for (int j = 0; j < outputWidth; j++) {
+            double sum = 0.0;
+            for (int fi = 0; fi < filterSize; fi++) {
+                for (int fj = 0; fj < filterSize; fj++) {
+                    int inputRow = i * stride + fi;
+                    int inputCol = j * stride + fj;
+                    sum += padded_input[inputRow][inputCol] * flipped_filter[fi][fj];
+                }
+            }
+            output[i][j] = sum;
+        }
+    }
+
+    return output;
+}
+
+// Compute cross-correlation for filter gradients
+gridEntity ConvolutionLayers::cross_correlate(
+    const gridEntity& input,
+    const gridEntity& gradient,
+    int stride
+) {
+    int filterSize = 3;
+    gridEntity filterGrad(filterSize, std::vector<double>(filterSize, 0.0));
+
+    int gradHeight = gradient.size();
+    int gradWidth = gradient[0].size();
+
+    for (int fi = 0; fi < filterSize; fi++) {
+        for (int fj = 0; fj < filterSize; fj++) {
+            double sum = 0.0;
+
+            for (int gi = 0; gi < gradHeight; gi++) {
+                for (int gj = 0; gj < gradWidth; gj++) {
+                    int inputRow = gi * stride + fi;
+                    int inputCol = gj * stride + fj;
+
+                    if (inputRow < input.size() && inputCol < input[0].size()) {
+                        sum += input[inputRow][inputCol] * gradient[gi][gj];
+                    }
+                }
+            }
+
+            filterGrad[fi][fj] = sum;
+        }
+    }
+
+    return filterGrad;
+}
+
+// Apply ReLU derivative
+void ConvolutionLayers::apply_relu_derivative(
+    gridEntity& gradients,
+    const gridEntity& original_output
+) {
+    for (size_t i = 0; i < gradients.size(); i++) {
+        for (size_t j = 0; j < gradients[0].size(); j++) {
+            if (original_output[i][j] <= 0) {
+                gradients[i][j] = 0.0;
+            }
+        }
+    }
+}
+
+// Compute filter gradients
 std::vector<volumetricEntity> ConvolutionLayers::compute_filter_gradients(
     const std::vector<gridEntity>& inputChannels,
     const std::vector<gridEntity>& outputGradients,
-    int stride = 1
+    int stride
 ) {
     std::vector<volumetricEntity> filterGradients;
+
     int numFilters = outputGradients.size();
     int numChannels = inputChannels.size();
 
@@ -241,33 +345,11 @@ std::vector<volumetricEntity> ConvolutionLayers::compute_filter_gradients(
         volumetricEntity filterGradient(numChannels);
 
         for (int channelIdx = 0; channelIdx < numChannels; ++channelIdx) {
-            const gridEntity& input = inputChannels[channelIdx];
-            const gridEntity& grad = outputGradients[filterIdx];
-
-            int filterHeight = 3;  // Your filter size
-            int filterWidth = 3;
-
-            gridEntity gradient(filterHeight, std::vector<double>(filterWidth, 0.0));
-
-            // Compute cross-correlation
-            for (int fh = 0; fh < filterHeight; ++fh) {
-                for (int fw = 0; fw < filterWidth; ++fw) {
-                    double sum = 0.0;
-
-                    for (int i = 0; i < grad.size(); ++i) {
-                        for (int j = 0; j < grad[0].size(); ++j) {
-                            int inputRow = i * stride + fh;
-                            int inputCol = j * stride + fw;
-
-                            if (inputRow < input.size() && inputCol < input[0].size()) {
-                                sum += input[inputRow][inputCol] * grad[i][j];
-                            }
-                        }
-                    }
-
-                    gradient[fh][fw] = sum;
-                }
-            }
+            gridEntity gradient = cross_correlate(
+                inputChannels[channelIdx],
+                outputGradients[filterIdx],
+                stride
+            );
 
             filterGradient[channelIdx] = gradient;
         }
@@ -278,46 +360,82 @@ std::vector<volumetricEntity> ConvolutionLayers::compute_filter_gradients(
     return filterGradients;
 }
 
+// CRITICAL: Compute input gradients (for backprop to previous layer)
+std::vector<gridEntity> ConvolutionLayers::compute_input_gradients(
+    const std::vector<gridEntity>& outputGradients,
+    const std::vector<volumetricEntity>& filters,
+    int stride
+) {
+    int numChannels = filters[0].size(); // Number of input channels
+    int numFilters = filters.size();     // Number of output channels
 
+    // Initialize input gradients
+    std::vector<gridEntity> inputGradients;
+    for (int c = 0; c < numChannels; c++) {
+        int height = outputGradients[0].size() + 2; // Approximate size
+        int width = outputGradients[0][0].size() + 2;
+        inputGradients.push_back(gridEntity(height, std::vector<double>(width, 0.0)));
+    }
 
+    // For each output gradient
+    for (int f = 0; f < numFilters; f++) {
+        // For each input channel
+        for (int c = 0; c < numChannels; c++) {
+            // Convolve gradient with filter
+            gridEntity channelGrad = full_convolve(
+                outputGradients[f],
+                filters[f][c],
+                stride
+            );
 
-void ConvolutionLayers::update_filters_with_gradients(std::vector<volumetricEntity>& filters,const std::vector<volumetricEntity>& gradients,double learningRate)
-{
-    // Loop through each filter (volumetric entity)
-    for (size_t filterIdx = 0; filterIdx < filters.size(); ++filterIdx)
-    {
-        volumetricEntity& filterTensor = filters[filterIdx];                // Current filter tensor
-        const volumetricEntity& gradientTensor = gradients[filterIdx];     // Corresponding gradient tensor
-
-        // Ensure the tensor dimensions match
-        if (filterTensor.size() != gradientTensor.size())
-        {
-            std::cerr << "Error: Mismatch in tensor dimensions for filter " << filterIdx << "\n";
-            continue;
+            // Accumulate into input gradients
+            for (size_t i = 0; i < channelGrad.size() && i < inputGradients[c].size(); i++) {
+                for (size_t j = 0; j < channelGrad[0].size() && j < inputGradients[c][0].size(); j++) {
+                    inputGradients[c][i][j] += channelGrad[i][j];
+                }
+            }
         }
+    }
 
-        // Update each 2D filter (gridEntity) in the tensor
-        for (size_t channelIdx = 0; channelIdx < filterTensor.size(); ++channelIdx)
+    return inputGradients;
+}
+
+// Update filters with gradient clipping and optional momentum
+void ConvolutionLayers::update_filters_with_gradients(
+    std::vector<volumetricEntity>& filters,
+    const std::vector<volumetricEntity>& gradients,
+    double learningRate
+)
+{
+    const double GRAD_CLIP = 1.0; // Lower clip threshold
+
+    for (size_t f = 0; f < filters.size() && f < gradients.size(); ++f)
+    {
+        for (size_t c = 0; c < filters[f].size() && c < gradients[f].size(); ++c)
         {
-            gridEntity& filter = filterTensor[channelIdx];                 // Current 2D filter
-            const gridEntity& gradient = gradientTensor[channelIdx];       // Corresponding 2D gradient
-
-            // Ensure 2D dimensions match
-            if (filter.size() != gradient.size())
+            if (filters[f][c].size() != gradients[f][c].size() ||
+                filters[f][c][0].size() != gradients[f][c][0].size())
             {
-                std::cerr << "Error: Mismatch in filter dimensions for channel " << channelIdx << " of filter " << filterIdx << "\n";
+                std::cerr << "Dimension mismatch at filter " << f << ", channel " << c << "\n";
+                std::cerr << "Filter: " << filters[f][c].size() << "x" << filters[f][c][0].size()
+                    << ", Grad: " << gradients[f][c].size() << "x" << gradients[f][c][0].size() << "\n";
                 continue;
             }
 
-            // Update filter values
-            for (size_t i = 0; i < filter.size(); ++i)
+            for (size_t i = 0; i < filters[f][c].size(); ++i)
             {
-                for (size_t j = 0; j < filter[i].size(); ++j)
+                for (size_t j = 0; j < filters[f][c][0].size(); ++j)
                 {
-                    filter[i][j] -= learningRate * gradient[i][j];
+                    double grad = gradients[f][c][i][j];
+
+                    // Clip gradient
+                    if (grad > GRAD_CLIP) grad = GRAD_CLIP;
+                    if (grad < -GRAD_CLIP) grad = -GRAD_CLIP;
+
+                    // Update weight
+                    filters[f][c][i][j] -= learningRate * grad;
                 }
             }
         }
     }
 }
-

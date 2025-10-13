@@ -54,7 +54,7 @@ public:
 	std::vector<volumetricEntity>& get_all_training_filter();
 
 	// Returns the raw image in form fo gridEntity
-	gridEntity get_raw_input_image();
+	gridEntity &get_raw_input_image();
 
 	// Return by reference as we may need to Insert into feature map
 	std::vector<gridEntity>& get_feature_map();
@@ -83,6 +83,7 @@ public:
 
 	// Takes the reference to the feature map and applies normaization to the feature map
 	void apply_normalaization_universal(gridEntity&);
+	void set_raw_input_image(const gridEntity& image);
 
 	// Takes a feature map and returns the pool map
 	gridEntity apply_pooling_univeral(gridEntity, int);
@@ -91,14 +92,48 @@ public:
 	gridEntity unpool_without_indices( gridEntity& ,  gridEntity& , int , int , int );
 
 
-	std::vector<volumetricEntity> compute_filter_gradients(
-		const std::vector<gridEntity>& inputChannels,        // Input to the convolutional layer
-		const std::vector<gridEntity>& outputGradients,      // Gradients w.r.t output (from unpooling)
+	//std::vector<volumetricEntity> compute_filter_gradients(
+	//	const std::vector<gridEntity>& inputChannels,        // Input to the convolutional layer
+	//	const std::vector<gridEntity>& outputGradients,      // Gradients w.r.t output (from unpooling)
+	//	int stride
+	//);
+
+
+	gridEntity cross_correlate(
+		const gridEntity& input,
+		const gridEntity& gradient,
 		int stride
 	);
 
+	gridEntity full_convolve(
+		const gridEntity& input,
+		const gridEntity& filter,
+		int stride
+	);
 
-	void update_filters_with_gradients(std::vector<volumetricEntity>&, const std::vector<volumetricEntity>&, double learningRate);
+	void apply_relu_derivative(
+		gridEntity& gradients,
+		const gridEntity& original_output
+	);
+
+	std::vector<gridEntity> compute_input_gradients(
+		const std::vector<gridEntity>& outputGradients,
+		const std::vector<volumetricEntity>& filters,
+		int stride
+	);
+
+	// Update existing declarations if needed
+	std::vector<volumetricEntity> compute_filter_gradients(
+		const std::vector<gridEntity>& inputChannels,
+		const std::vector<gridEntity>& outputGradients,
+		int stride
+	);
+
+	void update_filters_with_gradients(
+		std::vector<volumetricEntity>& filters,
+		const std::vector<volumetricEntity>& gradients,
+		double learningRate
+	);
 
 };
 

@@ -12,7 +12,6 @@ public:
     void printWeightMatrices();
     void printBiases();
     void forwardPropogation();
-    void backPropogation();
     Layer* GetLayer(int nth);
 
     void setErrors();
@@ -24,7 +23,6 @@ public:
     void printHistErrors();
     void saveHistErrors();
     double getLearningRate();
-    void setErrorDerivatives();
     std::vector<double> gethisterrors();
     void updateWeights();
     void gardientComputation();

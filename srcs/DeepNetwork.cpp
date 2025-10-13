@@ -221,7 +221,8 @@ void DeepNetwork::setErrors()
         double epsilon = 1e-15; // Small value to avoid instability
         pred = std::max(epsilon, std::min(1.0 - epsilon, pred));
 
-        this->errors[i] = act * std::log(pred) + (1 - act) * std::log(1 - pred);
+        this->errors[i] = -act * std::log(pred);
+
 
         // These are baseically the gadeints
         errorDerivatives[i] = -((act / pred) - ((1 - act) / (1 - pred)));
@@ -230,6 +231,7 @@ void DeepNetwork::setErrors()
         this->error += this->errors[i]; //
         // std::cout<<act<<"\t"<<pred<<"\t" << this->error << std::endl;
     }
+
 
 
 }

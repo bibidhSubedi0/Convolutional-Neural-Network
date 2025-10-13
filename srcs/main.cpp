@@ -264,4 +264,123 @@ int main()
             std::vector<GeneralMatrix::Matrix*> gradientMatrices = neuralNetwork.GetGradientMatrices();
             neuralNetwork.updateWeights();
 
-            const int numChannels =
+            const int numChannels = convLayer.get_final_pool_maps().size();
+            const int filterHeight = convLayer.get_final_pool_maps()[0].size();
+            const int filterWidth = convLayer.get_final_pool_maps()[0][0].size();
+
+            GeneralMatrix::Matrix* lastGradient = gradientMatrices.back();
+            GeneralMatrix::Matrix* transposedWeights = neuralNetwork.GetWeightMatrices()[0]->tranpose();
+            GeneralMatrix::Matrix* requiredGradients = *lastGradient * transposedWeights;
+
+            volumetricEntity pooledGradients;
+            int currentColumn = 0;
+
+            for (int channelIdx = 0; channelIdx < numChannels; ++channelIdx) {
+                gridEntity channelGradient;
+                for (int row = 0; row < filterHeight; ++row) {
+                    std::vector<double> rowGradient;
+                    for (int col = 0; col < filterWidth; ++col) {
+                        double gradientValue = requiredGradients->getVal(0, currentColumn);
+                        rowGradient.push_back(gradientValue);
+                        ++currentColumn;
+                    }
+                    channelGradient.push_back(rowGradient);
+                }
+                pooledGradients.push_back(channelGradient);
+            }
+
+            volumetricEntity unpooledGradients;
+            for (int channelIdx = 0; channelIdx < numChannels; ++channelIdx) {
+                gridEntity unpooledMap = convLayer.unpool_without_indices(
+                    pooledGradients[channelIdx],
+                    convLayer.get_output_feature_maps()[channelIdx],
+                    2, 2, 2
+                );
+                unpooledGradients.push_back(unpooledMap);
+            }
+
+            // CRITICAL FIX: Apply ReLU derivative before computing filter gradients
+            for (int channelIdx = 0; channelIdx < numChannels; ++channelIdx) {
+                convLayer.apply_relu_derivative(
+                    unpooledGradients[channelIdx],
+                    convLayer.get_output_feature_maps()[channelIdx]
+                );
+            }
+
+            std::vector<gridEntity> inputChannelsForGradient = convLayer.get_input_channels();
+            std::vector<volumetricEntity> filterGradients = convLayer.compute_filter_gradients(
+                inputChannelsForGradient,
+                unpooledGradients,
+                1
+            );
+
+            if (i == 0 && epoch == 0) {
+                double maxGrad = 0.0, minGrad = 0.0, sumGrad = 0.0;
+                int count = 0;
+
+                for (const auto& filterGrad : filterGradients) {
+                    for (const auto& channelGrad : filterGrad) {
+                        for (const auto& row : channelGrad) {
+                            for (double val : row) {
+                                maxGrad = std::max(maxGrad, val);
+                                minGrad = std::min(minGrad, val);
+                                sumGrad += val;
+                                count++;
+                            }
+                        }
+                    }
+                }
+
+                std::cout << "Gradient stats - Min: " << minGrad
+                    << ", Max: " << maxGrad
+                    << ", Avg: " << (sumGrad / count) << std::endl;
+            }
+
+            convLayer.update_filters_with_gradients(
+                convLayer.get_all_training_filter(),
+                filterGradients,
+                convolutionLearningRate
+            );
+
+            delete transposedWeights;
+            delete requiredGradients;
+
+            // ================================================================
+            // Progress Display
+            // ================================================================
+
+            if ((i + 1) % 50 == 0) {
+                double avgError = epochError / (i + 1);
+                double accuracy = (100.0 * correct) / (i + 1);
+                std::cout << "  Sample " << (i + 1) << "/" << trainingData.size()
+                    << " | Avg Error: " << avgError
+                    << " | Accuracy: " << accuracy << "%" << std::endl;
+            }
+        }
+
+        // ====================================================================
+        // Epoch Summary
+        // ====================================================================
+
+        double avgEpochError = epochError / trainingData.size();
+        double epochAccuracy = (100.0 * correct) / trainingData.size();
+
+        std::cout << "\n--- Epoch " << (epoch + 1) << " Summary ---" << std::endl;
+        std::cout << "Average Error: " << avgEpochError << std::endl;
+        std::cout << "Accuracy: " << epochAccuracy << "%" << std::endl;
+        std::cout << "Correct: " << correct << "/" << trainingData.size() << std::endl;
+
+        if ((epoch + 1) % 3 == 0) {
+            currentNNLearningRate *= 0.9;
+            currentConvLearningRate *= 0.9;
+            std::cout << "Learning rate decayed to: NN=" << currentNNLearningRate
+                << ", Conv=" << currentConvLearningRate << std::endl;
+        }
+    }
+
+    std::cout << "\n========================================" << std::endl;
+    std::cout << "Training Complete!" << std::endl;
+    std::cout << "========================================" << std::endl;
+
+    return 0;
+}

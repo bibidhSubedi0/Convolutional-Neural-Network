@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CNN Visualizer</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#060a0e;--panel:#0b1018;--border:#1a2534;
+  --accent:#00ffe0;--accent2:#ff4f7b;--accent3:#7b61ff;
+  --dim:#2e3f50;--dimtxt:#4a6070;--text:#b8ccd8;
+  --mono:'Share Tech Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;overflow:hidden;background:var(--bg);}
+body{display:flex;flex-direction:column;color:var(--text);font-family:'Rajdhani',sans-serif;}
+
+/* scanline overlay */
+body::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
+  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.08) 3px,rgba(0,0,0,0.08) 4px);
+}
+
+/* ── HEADER ── */
+header{
+  display:flex;align-items:center;gap:14px;
+  padding:0 24px;height:44px;flex-shrink:0;
+  border-bottom:1px solid var(--border);
+  background:linear-gradient(90deg,#090d12,#0b1219);
+}
+.logo{display:flex;align-items:center;gap:8px;}
+.hdot{width:6px;height:6px;border-radius:50%;background:var(--accent2);animation:blink 1.8s infinite;}
+.hdot.live{background:var(--accent);box-shadow:0 0 8px var(--accent);}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.15}}
+header h1{font-family:var(--mono);font-size:1rem;color:var(--accent);letter-spacing:.25em;white-space:nowrap;}
+.sep{width:1px;height:20px;background:var(--border);}
+.arch{font-family:var(--mono);font-size:.6rem;color:var(--dimtxt);letter-spacing:.06em;white-space:nowrap;}
+.hright{margin-left:auto;display:flex;align-items:center;gap:16px;}
+#statusTxt{font-family:var(--mono);font-size:.68rem;color:var(--dimtxt);letter-spacing:.1em;}
+#statusTxt b{color:var(--text);}
+
+/* ── MAIN PIPELINE ── */
+#pipeline{
+  flex:1;
+  display:flex;flex-direction:row;align-items:stretch;
+  overflow-x:auto;overflow-y:hidden;
+  padding:0 16px;
+  gap:0;
+  min-height:0;
+}
+#pipeline::-webkit-scrollbar{height:3px;}
+#pipeline::-webkit-scrollbar-track{background:var(--bg);}
+#pipeline::-webkit-scrollbar-thumb{background:var(--border);}
+
+/* each pipeline stage */
+.stage{
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  flex-shrink:0;padding:10px 6px;
+  position:relative;
+}
+
+/* stage label */
+.slabel{
+  font-family:var(--mono);font-size:.68rem;color:var(--dimtxt);
+  letter-spacing:.1em;text-transform:uppercase;
+  margin-bottom:8px;text-align:center;white-space:nowrap;
+  flex-shrink:0;
+}
+.slabel span{display:block;color:var(--dimtxt);font-size:.55rem;opacity:.7;margin-top:2px;letter-spacing:.06em;}
+
+/* maps container inside a stage — stacked vertically */
+.maps{
+  display:flex;flex-direction:column;
+  align-items:center;gap:8px;
+  flex:1;justify-content:center;
+}
+
+/* individual map card */
+.mc{
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  opacity:0;transform:scale(.95);
+  transition:opacity .4s ease,transform .4s ease;
+}
+.mc.on{opacity:1;transform:scale(1);}
+.mc-lbl{font-family:var(--mono);font-size:.58rem;color:var(--dim);letter-spacing:.07em;text-align:center;}
+canvas.hmap{display:block;image-rendering:pixelated;border:1px solid var(--border);}
+canvas.hmap.lit{border-color:rgba(0,255,224,.25);box-shadow:0 0 12px rgba(0,255,224,.08);}
+
+/* placeholder ghost */
+.ghost{
+  display:flex;align-items:center;justify-content:center;
+  border:1px dashed var(--dim);opacity:.25;
+  font-family:var(--mono);font-size:.45rem;color:var(--dimtxt);
+  letter-spacing:.08em;
+}
+
+/* ── ARROW ── */
+.arrow{
+  flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  width:38px;position:relative;
+}
+.arrow-line{
+  width:100%;height:1px;
+  background:linear-gradient(90deg,var(--border),var(--dimtxt));
+  position:relative;
+}
+.arrow-line::after{
+  content:'';position:absolute;right:-1px;top:-4px;
+  border:5px solid transparent;
+  border-left:7px solid var(--dimtxt);
+}
+.arrow.lit .arrow-line{background:linear-gradient(90deg,var(--border),var(--accent));opacity:.6;}
+.arrow.lit .arrow-line::after{border-left-color:var(--accent);}
+
+/* ── INPUT STAGE ── */
+#inputStage{width:220px;}
+.draw-wrap{
+  position:relative;cursor:crosshair;flex-shrink:0;
+  border:1px solid var(--border);background:#000;
+  transition:border-color .2s,box-shadow .2s;
+}
+.draw-wrap.inking{border-color:var(--accent);box-shadow:0 0 24px rgba(0,255,224,.25);}
+#dc{display:block;}
+.draw-tools{
+  display:flex;gap:6px;margin-top:8px;width:100%;
+}
+.draw-tools button{
+  flex:1;font-family:var(--mono);font-size:.68rem;letter-spacing:.1em;
+  text-transform:uppercase;padding:.4rem .5rem;
+  border:1px solid var(--border);background:transparent;color:var(--text);
+  cursor:pointer;transition:all .15s;
+}
+.draw-tools button:hover{border-color:var(--accent);color:var(--accent);}
+#runBtn{border-color:var(--accent)!important;color:var(--accent)!important;}
+#runBtn:hover{background:var(--accent)!important;color:var(--bg)!important;}
+#runBtn:disabled{opacity:.3;cursor:default;}
+
+/* brush size selector */
+.brush-row{
+  display:flex;align-items:center;gap:6px;margin-top:6px;
+  font-family:var(--mono);font-size:.6rem;color:var(--dimtxt);letter-spacing:.08em;
+}
+.brush-row input[type=range]{flex:1;accent-color:var(--accent);}
+
+/* ── FC STAGE ── */
+#fcStage{width:120px;}
+.fc-grid{
+  display:grid;
+  grid-template-columns:repeat(16,1fr);
+  gap:2px;
+  width:104px;
+  padding:4px;
+  border:1px solid var(--border);
+  background:#000;
+}
+.fc-cell{
+  width:100%;aspect-ratio:1;
+  background:var(--dim);
+  border-radius:1px;
+  transition:background .4s ease;
+}
+
+/* ── OUTPUT STAGE ── */
+#outStage{width:200px;}
+.out-bars{
+  display:flex;align-items:flex-end;gap:4px;
+  flex:1;padding:8px 4px 0;width:100%;
+}
+.out-col{display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;}
+.out-track{width:100%;flex:1;display:flex;flex-direction:column;justify-content:flex-end;min-height:0;}
+.out-bar{
+  width:100%;background:var(--dim);
+  transition:height .5s cubic-bezier(.4,0,.2,1),background .3s;
+  min-height:2px;
+}
+.out-bar.winner{background:var(--accent);box-shadow:0 0 10px rgba(0,255,224,.5);}
+.out-lbl{font-family:var(--mono);font-size:.6rem;color:var(--dimtxt);}
+.out-lbl.winner{color:var(--accent);}
+
+.pred-display{
+  margin-top:10px;text-align:center;flex-shrink:0;
+}
+.pred-num{
+  font-family:var(--mono);font-size:3rem;color:var(--dim);
+  line-height:1;letter-spacing:.05em;
+  transition:color .4s,text-shadow .4s;
+}
+.pred-num.live{color:var(--accent);text-shadow:0 0 40px rgba(0,255,224,.4);}
+.pred-conf{
+  font-family:var(--mono);font-size:.68rem;color:var(--dimtxt);
+  letter-spacing:.1em;margin-top:4px;
+  transition:color .3s;
+}
+.pred-conf.live{color:var(--text);}
+.pred-tag{
+  font-family:var(--mono);font-size:.55rem;color:var(--dim);
+  letter-spacing:.08em;margin-top:3px;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="hdot" id="hdot"></div>
+    <h1>CNN VISUALIZER</h1>
+  </div>
+  <div class="sep"></div>
+  <div class="arch">28×28 → CONV1(5×5)×3 → POOL → CONV2(3×3)×3 → POOL → FC(256) → SOFTMAX(10)</div>
+  <div class="hright">
+    <div id="statusTxt"><b>IDLE</b> · draw a digit and hit run</div>
+  </div>
+</header>
+
+<div id="pipeline">
+
+  <!-- INPUT -->
+  <div class="stage" id="inputStage">
+    <div class="slabel">Input<span>28 × 28 · grayscale</span></div>
+    <div class="draw-wrap" id="drawWrap">
+      <canvas id="dc" width="196" height="196"></canvas>
+    </div>
+    <div class="brush-row">
+      brush <input type="range" id="brushSize" min="6" max="28" value="16">
+    </div>
+    <div class="draw-tools">
+      <button id="runBtn">▶ RUN</button>
+      <button id="clearBtn">CLR</button>
+    </div>
+  </div>
+
+  <div class="arrow" id="arr0"><div class="arrow-line"></div></div>
+
+  <!-- CONV 1 -->
+  <div class="stage" id="conv1Stage">
+    <div class="slabel">Conv Layer 1<span>5×5 edge filters · 24×24</span></div>
+    <div class="maps" id="conv1maps"></div>
+  </div>
+
+  <div class="arrow" id="arr1"><div class="arrow-line"></div></div>
+
+  <!-- POOL 1 -->
+  <div class="stage" id="pool1Stage">
+    <div class="slabel">Max Pool 1<span>2×2 stride 2 · 12×12</span></div>
+    <div class="maps" id="pool1maps"></div>
+  </div>
+
+  <div class="arrow" id="arr2"><div class="arrow-line"></div></div>
+
+  <!-- CONV 2 -->
+  <div class="stage" id="conv2Stage">
+    <div class="slabel">Conv Layer 2<span>3×3 trainable · 10×10</span></div>
+    <div class="maps" id="conv2maps"></div>
+  </div>
+
+  <div class="arrow" id="arr3"><div class="arrow-line"></div></div>
+
+  <!-- POOL 2 -->
+  <div class="stage" id="pool2Stage">
+    <div class="slabel">Max Pool 2<span>2×2 stride 2 · 5×5</span></div>
+    <div class="maps" id="pool2maps"></div>
+  </div>
+
+  <div class="arrow" id="arr4"><div class="arrow-line"></div></div>
+
+  <!-- FC -->
+  <div class="stage" id="fcStage">
+    <div class="slabel">FC Hidden<span>256 neurons</span></div>
+    <div class="fc-grid" id="fcGrid"></div>
+  </div>
+
+  <div class="arrow" id="arr5"><div class="arrow-line"></div></div>
+
+  <!-- OUTPUT -->
+  <div class="stage" id="outStage">
+    <div class="slabel">Output<span>softmax · 10 classes</span></div>
+    <div class="out-bars" id="outBars"></div>
+    <div class="pred-display">
+      <div class="pred-num" id="predNum">—</div>
+      <div class="pred-conf" id="predConf">confidence: —</div>
+      <div class="pred-tag" id="predTag">awaiting inference</div>
+    </div>
+  </div>
+
+</div><!-- /pipeline -->
+
+<script>
+// ═══════════════════════════════════════════════════════
+// SIZING — compute map scales from available height
+// ═══════════════════════════════════════════════════════
+function getMapScale(mapSize){
+  const avail = window.innerHeight - 44 - 80;
+  const perMap = Math.floor((avail - 40) / 3) - 14;
+  return Math.max(1, Math.floor(perMap / mapSize * 0.72)); // 0.72 = "wee bit" smaller
+}
+
+const S1 = getMapScale(24); // conv1: 24×24
+const S2 = getMapScale(12); // pool1: 12×12
+const S3 = getMapScale(10); // conv2: 10×10
+const S4 = getMapScale(5);  // pool2: 5×5
+
+// set stage widths based on computed scales
+document.getElementById('conv1Stage').style.width = (24*S1 + 32)+'px';
+document.getElementById('pool1Stage').style.width = (12*S2 + 32)+'px';
+document.getElementById('conv2Stage').style.width = (10*S3 + 32)+'px';
+document.getElementById('pool2Stage').style.width = (5*S4  + 32)+'px';
+
+// set draw canvas & wrap height to match pipeline height
+const mainH = window.innerHeight - 44;
+const canvasSize = Math.min(196, mainH - 90);
+document.getElementById('dc').width  = canvasSize;
+document.getElementById('dc').height = canvasSize;
+
+// ═══════════════════════════════════════════════════════
+// DRAWING
+// ═══════════════════════════════════════════════════════
+const dc    = document.getElementById('dc');
+const dctx  = dc.getContext('2d');
+const dWrap = document.getElementById('drawWrap');
+const brushSlider = document.getElementById('brushSize');
+
+dctx.fillStyle='#000'; dctx.fillRect(0,0,dc.width,dc.height);
+dctx.strokeStyle='#fff'; dctx.lineWidth=16; dctx.lineCap='round'; dctx.lineJoin='round';
+
+let drawing=false, lx=0, ly=0;
+
+function getBrush(){ return +brushSlider.value; }
+function pos(e){
+  const r=dc.getBoundingClientRect();
+  const s=e.touches?e.touches[0]:e;
+  return [(s.clientX-r.left)*(dc.width/r.width),(s.clientY-r.top)*(dc.height/r.height)];
+}
+dc.addEventListener('mousedown', e=>{
+  drawing=true;[lx,ly]=pos(e);
+  dctx.lineWidth=getBrush();
+  dWrap.classList.add('inking');
+});
+dc.addEventListener('mouseup',   ()=>{drawing=false;dWrap.classList.remove('inking');});
+dc.addEventListener('mouseleave',()=>{drawing=false;dWrap.classList.remove('inking');});
+dc.addEventListener('mousemove', e=>{
+  if(!drawing)return;
+  const[x,y]=pos(e);
+  dctx.lineWidth=getBrush();
+  dctx.beginPath();dctx.moveTo(lx,ly);dctx.lineTo(x,y);dctx.stroke();
+  [lx,ly]=[x,y];
+});
+dc.addEventListener('touchstart',e=>{e.preventDefault();drawing=true;[lx,ly]=pos(e);},{passive:false});
+dc.addEventListener('touchend',  e=>{e.preventDefault();drawing=false;},{passive:false});
+dc.addEventListener('touchmove', e=>{
+  e.preventDefault();if(!drawing)return;
+  const[x,y]=pos(e);
+  dctx.lineWidth=getBrush();
+  dctx.beginPath();dctx.moveTo(lx,ly);dctx.lineTo(x,y);dctx.stroke();
+  [lx,ly]=[x,y];
+},{passive:false});
+
+// ═══════════════════════════════════════════════════════
+// BUILD FC GRID (16×16 = 256 neurons as heatmap cells)
+// ═══════════════════════════════════════════════════════
+const fcGrid = document.getElementById('fcGrid');
+for(let i=0;i<256;i++){
+  const cell=document.createElement('div');
+  cell.className='fc-cell'; cell.id=`fcc-${i}`;
+  fcGrid.appendChild(cell);
+}
+// set FC stage width to match grid
+document.getElementById('fcStage').style.width='130px';
+
+// ═══════════════════════════════════════════════════════
+// BUILD OUTPUT BARS
+// ═══════════════════════════════════════════════════════
+const outBarsEl = document.getElementById('outBars');
+for(let i=0;i<10;i++){
+  outBarsEl.innerHTML+=`
+    <div class="out-col">
+      <div class="out-track"><div class="out-bar" id="ob-${i}"></div></div>
+      <div class="out-lbl" id="ol-${i}">${i}</div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+// HEATMAP RENDERER
+// ═══════════════════════════════════════════════════════
+function hmap(mat, scale, colorMode='teal'){
+  const rows=mat.length, cols=mat[0].length;
+  const c=document.createElement('canvas');
+  c.width=cols*scale; c.height=rows*scale; c.className='hmap';
+  let mn=Infinity, mx=-Infinity;
+  for(const r of mat) for(const v of r){if(v<mn)mn=v;if(v>mx)mx=v;}
+  const rng=mx-mn||1;
+  const ic=c.getContext('2d');
+  for(let r=0;r<rows;r++) for(let cl=0;cl<cols;cl++){
+    const t=(mat[r][cl]-mn)/rng;
+    let col;
+    if(colorMode==='gray'){
+      const g=Math.round(t*255);
+      col=`rgb(${g},${g},${g})`;
+    } else if(colorMode==='teal'){
+      col=`rgb(${Math.round(t*20)},${Math.round(40+t*215)},${Math.round(80+t*175)})`;
+    } else { // purple
+      col=`rgb(${Math.round(60+t*195)},${Math.round(t*80)},${Math.round(80+t*175)})`;
+    }
+    ic.fillStyle=col;
+    ic.fillRect(cl*scale,r*scale,scale,scale);
+  }
+  return c;
+}
+
+const CONV1_LABELS = ['vertical','horizontal','diagonal'];
+const CONV2_LABELS = ['filter 0','filter 1','filter 2'];
+
+function fillMaps(containerId, maps, labels, scale, colorMode='teal'){
+  const el = document.getElementById(containerId);
+  el.innerHTML='';
+  maps.forEach((m,i)=>{
+    const card=document.createElement('div');
+    card.className='mc';
+    const lbl=document.createElement('div');
+    lbl.className='mc-lbl';
+    lbl.textContent=labels[i]||`ch ${i}`;
+    const canvas=hmap(m,scale,colorMode);
+    card.appendChild(lbl);
+    card.appendChild(canvas);
+    el.appendChild(card);
+    setTimeout(()=>card.classList.add('on'), i*80+50);
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// RESET
+// ═══════════════════════════════════════════════════════
+function resetViz(){
+  ['conv1maps','pool1maps','conv2maps','pool2maps'].forEach(id=>{
+    const el=document.getElementById(id);
+    el.innerHTML='';
+  });
+  for(let i=0;i<10;i++){
+    const b=document.getElementById(`ob-${i}`);
+    b.style.height='2px'; b.className='out-bar';
+    document.getElementById(`ol-${i}`).className='out-lbl';
+  }
+  for(let i=0;i<256;i++){
+    const c=document.getElementById(`fcc-${i}`);
+    if(c){c.style.background='var(--dim)';}
+  }
+  document.getElementById('predNum').textContent='—';
+  document.getElementById('predNum').className='pred-num';
+  document.getElementById('predConf').textContent='confidence: —';
+  document.getElementById('predConf').className='pred-conf';
+  document.getElementById('predTag').textContent='awaiting inference';
+  document.getElementById('hdot').classList.remove('live');
+  for(let i=0;i<6;i++) document.getElementById(`arr${i}`).classList.remove('lit');
+  setStatus('<b>IDLE</b> · draw a digit and hit run');
+}
+
+function litArrows(n){
+  for(let i=0;i<=n;i++) document.getElementById(`arr${i}`).classList.add('lit');
+}
+
+function setStatus(html){
+  document.getElementById('statusTxt').innerHTML=html;
+}
+
+// ═══════════════════════════════════════════════════════
+// CNN MATH (JS port — conv1 exact, rest approximate)
+// ═══════════════════════════════════════════════════════
+const EDGE=[
+  [[1,0,-1,0,1],[1,0,-1,0,1],[1,0,-1,0,1],[1,0,-1,0,1],[1,0,-1,0,1]],
+  [[1,1,1,1,1],[0,0,0,0,0],[-1,-1,-1,-1,-1],[0,0,0,0,0],[1,1,1,1,1]],
+  [[1,1,0,-1,-1],[1,1,0,-1,-1],[0,0,0,0,0],[-1,-1,0,1,1],[-1,-1,0,1,1]]
+];
+function conv2d(img,f,s=1){
+  const iH=img.length,iW=img[0].length,fH=f.length,fW=f[0].length;
+  const oH=Math.floor((iH-fH)/s)+1,oW=Math.floor((iW-fW)/s)+1;
+  const out=Array.from({length:oH},()=>new Array(oW).fill(0));
+  for(let i=0;i<oH;i++)for(let j=0;j<oW;j++){
+    let sum=0;
+    for(let fi=0;fi<fH;fi++)for(let fj=0;fj<fW;fj++)
+      sum+=img[i*s+fi][j*s+fj]*f[fi][fj];
+    out[i][j]=sum;
+  }
+  return out;
+}
+function relu(m){return m.map(r=>r.map(v=>Math.max(0,v)));}
+function maxpool(m,s=2){
+  const iH=m.length,iW=m[0].length;
+  const oH=Math.ceil(iH/s),oW=Math.ceil(iW/s);
+  const out=Array.from({length:oH},()=>new Array(oW).fill(-Infinity));
+  for(let i=0;i<oH;i++)for(let j=0;j<oW;j++){
+    for(let ki=0;ki<s;ki++)for(let kj=0;kj<s;kj++){
+      const ri=i*s+ki,ci=j*s+kj;
+      if(ri<iH&&ci<iW&&m[ri][ci]>out[i][j])out[i][j]=m[ri][ci];
+    }
+  }
+  return out;
+}
+function sumMats(mats){
+  const rows=mats[0].length,cols=mats[0][0].length;
+  const out=Array.from({length:rows},()=>new Array(cols).fill(0));
+  for(const m of mats)for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)out[r][c]+=m[r][c];
+  return out;
+}
+function softmax(a){
+  const mx=Math.max(...a);
+  const e=a.map(v=>Math.exp(v-mx));
+  const s=e.reduce((a,b)=>a+b,0);
+  return e.map(v=>v/s);
+}
+function getPixels28(){
+  const t=document.createElement('canvas');t.width=28;t.height=28;
+  const tc=t.getContext('2d');tc.drawImage(dc,0,0,28,28);
+  const d=tc.getImageData(0,0,28,28).data;
+  const px=[];
+  for(let r=0;r<28;r++){
+    const row=[];
+    for(let c=0;c<28;c++) row.push(d[(r*28+c)*4]/255);
+    px.push(row);
+  }
+  return px;
+}
+
+// ═══════════════════════════════════════════════════════
+// VISUALIZE
+// ═══════════════════════════════════════════════════════
+function visualize(data, isDemo){
+  const{layers,fc,probs}=data;
+  const topIdx=probs.indexOf(Math.max(...probs));
+  const conf=(probs[topIdx]*100).toFixed(1);
+
+  // Conv1 maps
+  fillMaps('conv1maps', layers.conv1, CONV1_LABELS, S1, 'teal');
+  litArrows(0);
+
+  // Pool1 maps
+  setTimeout(()=>{
+    fillMaps('pool1maps', layers.pool1, ['ch 0','ch 1','ch 2'], S2, 'teal');
+    litArrows(1);
+  }, 150);
+
+  // Conv2 maps
+  setTimeout(()=>{
+    fillMaps('conv2maps', layers.conv2, CONV2_LABELS, S3, 'purple');
+    litArrows(2);
+  }, 300);
+
+  // Pool2 maps
+  setTimeout(()=>{
+    fillMaps('pool2maps', layers.pool2, ['ch 0','ch 1','ch 2'], S4, 'purple');
+    litArrows(3);
+  }, 450);
+
+  // FC grid
+  setTimeout(()=>{
+    const fcMax=Math.max(...fc)||1;
+    for(let i=0;i<256;i++){
+      const v=fc[i]||0;
+      const t=v/fcMax;
+      const cell=document.getElementById(`fcc-${i}`);
+      if(!cell) continue;
+      const r=Math.round(t*20);
+      const g=Math.round(40+t*215);
+      const b=Math.round(80+t*175);
+      cell.style.background = t>0.01 ? `rgb(${r},${g},${b})` : 'var(--dim)';
+      cell.style.transition=`background .3s ease ${Math.floor(i/16)*15}ms`;
+    }
+    litArrows(4);
+  }, 600);
+
+  // Output bars
+  setTimeout(()=>{
+    const maxH = document.getElementById('outBars').offsetHeight - 24;
+    for(let i=0;i<10;i++){
+      const b=document.getElementById(`ob-${i}`);
+      const h=Math.max(2,Math.round(probs[i]*maxH));
+      b.style.height=h+'px';
+      b.className='out-bar'+(i===topIdx?' winner':'');
+      document.getElementById(`ol-${i}`).className='out-lbl'+(i===topIdx?' winner':'');
+    }
+    litArrows(5);
+  }, 750);
+
+  // Prediction
+  setTimeout(()=>{
+    const pn=document.getElementById('predNum');
+    pn.textContent=topIdx;
+    pn.className='pred-num live';
+    document.getElementById('predConf').textContent=`confidence: ${conf}%`;
+    document.getElementById('predConf').className='pred-conf live';
+    document.getElementById('predTag').textContent=isDemo?'demo mode · fc approximate':'model inference';
+    document.getElementById('hdot').classList.add('live');
+    setStatus(`predicted <b>${topIdx}</b> · confidence <b>${conf}%</b>${isDemo?' · <span style="color:var(--accent2)">demo mode</span>':''}`);
+  }, 900);
+}
+
+// ═══════════════════════════════════════════════════════
+// PIPELINE — try server, fall back to demo
+// ═══════════════════════════════════════════════════════
+async function runPipeline(){
+  const px = getPixels28();
+  setStatus('◌ running inference…');
+
+  try{
+    const r = await fetch('http://localhost:5000/predict',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({pixels:px})
+    });
+    if(r.ok){
+      visualize(await r.json(), false);
+      return;
+    }
+  } catch(e){}
+
+  // Demo mode
+  setStatus('◌ server offline · running demo…');
+  const conv1=EDGE.map(f=>relu(conv2d(px,f,1)));
+  const pool1=conv1.map(m=>maxpool(m,2));
+  const tf=Array.from({length:3},(_,fi)=>
+    Array.from({length:3},(_,ci)=>
+      Array.from({length:3},()=>Array.from({length:3},(_,j)=>Math.sin(fi*7+ci*3+j)*0.4))
+    )
+  );
+  const conv2=tf.map(filt=>relu(sumMats(pool1.map((ch,ci)=>conv2d(ch,filt[ci],1)))));
+  const pool2=conv2.map(m=>maxpool(m,2));
+  const flat=pool2.flatMap(m=>m.flatMap(r=>r));
+  const fc=Array.from({length:256},(_,i)=>
+    Math.max(0,flat.reduce((s,v,j)=>s+v*Math.sin(i*.31+j*.07),0))
+  );
+  const logits=Array.from({length:10},(_,i)=>
+    fc.reduce((s,v,j)=>s+v*Math.cos(i*1.1+j*.05)*.08,0)
+  );
+  visualize({layers:{conv1,pool1,conv2,pool2},fc,probs:softmax(logits)},true);
+}
+
+// ═══════════════════════════════════════════════════════
+// BUTTONS
+// ═══════════════════════════════════════════════════════
+document.getElementById('runBtn').addEventListener('click', async()=>{
+  const btn=document.getElementById('runBtn');
+  btn.textContent='◌'; btn.disabled=true;
+  resetViz();
+  await runPipeline();
+  btn.textContent='▶ RUN'; btn.disabled=false;
+});
+
+document.getElementById('clearBtn').addEventListener('click',()=>{
+  dctx.fillStyle='#000'; dctx.fillRect(0,0,dc.width,dc.height);
+  resetViz();
+});
+</script>
+</body>
+</html>

@@ -35,3 +35,7 @@ opencv/*.dll
 *.swp
 *.bak
 *.db
+
+resources
+/resource/mnist_test.csv
+/resource/mnist_train.csv

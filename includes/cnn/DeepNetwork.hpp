@@ -1,7 +1,8 @@
 #pragma once
-#include"vector"
-#include"../cnn/Matrix.hpp"
-#include"../cnn/Layer.hpp"
+#include "vector"
+#include "../cnn/Matrix.hpp"
+#include "../cnn/Layer.hpp"
+
 class DeepNetwork
 {
 
@@ -29,7 +30,6 @@ public:
     std::vector<GeneralMatrix::Matrix*> averageGradients(std::vector<std::vector<GeneralMatrix::Matrix*>>);
     void saveThisError(double error);
 
-
     std::vector<GeneralMatrix::Matrix*> GetGradientMatrices();
     std::vector<GeneralMatrix::Matrix*> GetWeightMatrices();
     std::vector<GeneralMatrix::Matrix*> GetBiasMatrices();
@@ -48,7 +48,6 @@ private:
     std::vector<double> histErrors;
     std::vector<double> errorDerivatives;
     double learningRate;
-
-
-
+    std::vector<GeneralMatrix::Matrix*> layerActivationSnapshots;
+    std::vector<GeneralMatrix::Matrix*> layerDerivedSnapshots;
 };

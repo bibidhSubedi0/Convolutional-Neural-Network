@@ -32,7 +32,7 @@ gridEntity CNN_Matrix::Matrix::convolute(gridEntity input_image_section, gridEnt
             }
 
             // Store result in the output grid
-           
+
 
             // I can probaly just apply RELU Here !?????
             output[i][j] = sum;
@@ -53,7 +53,7 @@ double CNN_Matrix::Matrix::genRandomNumber()
     float random_number = dis(gen);
     return random_number;
 }
-void CNN_Matrix::Matrix::randomize_all_values(gridEntity &mat,int numRows,int numCols)
+void CNN_Matrix::Matrix::randomize_all_values(gridEntity& mat, int numRows, int numCols)
 {
     gridEntity temp;
     for (int i = 0; i < numRows; i++)
@@ -88,7 +88,7 @@ gridEntity CNN_Matrix::Matrix::sum_of_all_matrix_elements(std::vector<gridEntity
     int rows = all_matrices[0].size();
     int cols = all_matrices[0][0].size();
 
-    gridEntity result(rows,std::vector<double>(cols,0));
+    gridEntity result(rows, std::vector<double>(cols, 0));
 
     for (const auto& mat : all_matrices) {
         for (int i = 0; i < rows; ++i) {
@@ -107,7 +107,7 @@ void CNN_Matrix::Matrix::displayMatrix(gridEntity mat) {
         {
             std::cout << vals << " ";
         }
-        std::cout<<"\n";
+        std::cout << "\n";
     }
 }
 
@@ -136,16 +136,14 @@ GeneralMatrix::Matrix::Matrix(int numRows, int numCols, bool isRandom = true)
 double GeneralMatrix::Matrix::genRandomNumber()
 {
     std::random_device rd;
-    std::mt19937 gen(rd()); // MerseNetworke Twister 19937 generator seeded with rd
+    std::mt19937 gen(rd());
 
-    // Define the distribution for floating point numbers between 0 and 1
-    std::uniform_real_distribution<float> dis(0.3f, 0.7f);
+    // He initialization: N(0, 0.1)
+    // MUST include negative values or all hidden activations are positive,
+    // output logits are all identical, softmax is uniform, loss = ln(10) forever.
+    std::normal_distribution<double> dis(0.0, 0.1);
 
-    // Generate a random float number between 0 and 1 with 3 decimal digits
-    float random_number = dis(gen);
-    return random_number;
-    // Output the generated random number
-    // return 0.5;
+    return dis(gen);
 }
 
 void GeneralMatrix::Matrix::printToConsole()

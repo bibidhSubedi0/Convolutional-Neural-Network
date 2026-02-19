@@ -178,13 +178,13 @@ public:
 private:
     template<typename T>
     static void write(std::ofstream& f, T val) {
-        f.write(reinterpret_cast<const char*>(&val), sizeof(T));
+        f.write(reinterpret_cast<const char*>(&val), static_cast<std::streamsize>(sizeof(T)));
     }
 
     template<typename T>
     static T read(std::ifstream& f) {
-        T val;
-        f.read(reinterpret_cast<char*>(&val), sizeof(T));
+        T val{};
+        f.read(reinterpret_cast<char*>(&val), static_cast<std::streamsize>(sizeof(T)));
         return val;
     }
 };

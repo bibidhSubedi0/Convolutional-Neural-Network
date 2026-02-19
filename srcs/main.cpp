@@ -211,11 +211,15 @@ void runTraining(const std::string& modelPath) {
                 std::cout << "  [" << (i + 1) << "/" << trainData.size() << "]"
                 << "  AvgLoss=" << (epochError / (i + 1))
                 << "  Acc=" << (100.0 * correct / (i + 1)) << "%" << std::endl;
+
         }
 
         std::cout << "\n  Epoch Summary | Loss=" << (epochError / trainData.size())
             << " | Acc=" << (100.0 * correct / trainData.size()) << "%"
             << " | " << correct << "/" << trainData.size() << " correct" << std::endl;
+
+        std::cout << "Weight[0][0] going into epoch " << (epoch + 2) << ": "
+            << net.GetWeightMatrices()[0]->getVal(0, 0) << std::endl;
 
         // Checkpoint after every epoch
         std::string ckpt = "checkpoint_epoch_" + std::to_string(epoch + 1) + ".bin";

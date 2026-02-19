@@ -7,7 +7,10 @@ A browser-based visualizer lets you draw a digit and watch activations propagate
 ![Architecture](https://img.shields.io/badge/architecture-CNN-00ffe0?style=flat-square) ![Language](https://img.shields.io/badge/language-C%2B%2B17-blue?style=flat-square) ![Dataset](https://img.shields.io/badge/dataset-MNIST-ff4f7b?style=flat-square)
 
 ---
+## Visualization
+<img width="1906" height="915" alt="image" src="https://github.com/user-attachments/assets/af742c0f-7539-450f-83c9-eb9c68f53b8a" />
 
+---
 ## Architecture
 
 ```

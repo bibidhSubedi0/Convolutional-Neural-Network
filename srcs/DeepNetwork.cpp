@@ -378,3 +378,7 @@ std::vector<GeneralMatrix::Matrix*> DeepNetwork::averageGradients(vector<vector<
 std::vector<GeneralMatrix::Matrix*> DeepNetwork::GetGradientMatrices() {
     return this->GradientMatrices;
 }
+
+std::vector<GeneralMatrix::Matrix*> DeepNetwork::GetBiasMatrices() {
+    return this->BaisMatrices;
+}

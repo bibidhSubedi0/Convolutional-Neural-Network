@@ -2,385 +2,346 @@
 #include "../cnn/Matrix.hpp"
 #include "../cnn/ConvolutionLayers.hpp"
 #include "../cnn/DeepNetwork.hpp"
+#include "../cnn/ModelSerializer.hpp"
 #include <fstream>
 #include <sstream>
 #include <string>
 #include <vector>
 #include <iostream>
+#include <algorithm>
 
 // =========================================================================
-// Helper Function: Load MNIST CSV Data
+// Constants
+// =========================================================================
+static const std::string DEFAULT_MODEL_PATH = "saved_model.bin";
+static const int         NUM_CLASSES = 10;
+static const int         IMAGE_SIZE = 28;
+
+// =========================================================================
+// MNIST helpers
 // =========================================================================
 struct MNISTSample {
     int label;
-    std::vector<std::vector<double>> pixels; // 28x28 image
+    std::vector<std::vector<double>> pixels;
 };
 
 std::vector<MNISTSample> loadMNISTFromCSV(const std::string& filepath, int maxSamples = -1) {
     std::vector<MNISTSample> dataset;
     std::ifstream file(filepath);
-
     if (!file.is_open()) {
         std::cerr << "Error: Could not open file " << filepath << std::endl;
         return dataset;
     }
-
     std::string line;
-    std::getline(file, line);
-
-    int sampleCount = 0;
-    while (std::getline(file, line) && (maxSamples == -1 || sampleCount < maxSamples)) {
+    std::getline(file, line); // skip header
+    int count = 0;
+    while (std::getline(file, line) && (maxSamples == -1 || count < maxSamples)) {
         std::stringstream ss(line);
         std::string value;
-
         MNISTSample sample;
         std::getline(ss, value, ',');
         sample.label = std::stoi(value);
-
-        std::vector<double> flatPixels;
-        while (std::getline(ss, value, ',')) {
-            flatPixels.push_back(std::stod(value) / 255.0);
-        }
-
-        sample.pixels.resize(28);
-        for (int i = 0; i < 28; ++i) {
-            sample.pixels[i].resize(28);
-            for (int j = 0; j < 28; ++j) {
-                sample.pixels[i][j] = flatPixels[i * 28 + j];
-            }
-        }
-
+        std::vector<double> flat;
+        while (std::getline(ss, value, ','))
+            flat.push_back(std::stod(value) / 255.0);
+        sample.pixels.resize(IMAGE_SIZE, std::vector<double>(IMAGE_SIZE));
+        for (int i = 0; i < IMAGE_SIZE; i++)
+            for (int j = 0; j < IMAGE_SIZE; j++)
+                sample.pixels[i][j] = flat[i * IMAGE_SIZE + j];
         dataset.push_back(sample);
-        sampleCount++;
-
-        if (sampleCount % 1000 == 0) {
-            std::cout << "Loaded " << sampleCount << " samples..." << std::endl;
-        }
+        count++;
+        if (count % 1000 == 0)
+            std::cout << "Loaded " << count << " samples..." << std::endl;
     }
-
-    file.close();
-    std::cout << "Total samples loaded: " << dataset.size() << std::endl;
+    std::cout << "Total loaded: " << dataset.size() << std::endl;
     return dataset;
 }
 
-// =========================================================================
-// Helper Function: Create Onehot Encoded Target
-// =========================================================================
-std::vector<double> createOneHotTarget(int label) {
-    std::vector<double> target(10, 0.0);
-    target[label] = 1.0;
-    return target;
+std::vector<double> createOneHot(int label) {
+    std::vector<double> t(NUM_CLASSES, 0.0);
+    t[label] = 1.0;
+    return t;
 }
 
 // =========================================================================
-// Helper Function: Process Single Image Through Conv Layers
+// Conv pipeline — shared between train, eval, predict
 // =========================================================================
 std::vector<double> processImageThroughConvLayers(
-    ConvolutionLayers& convLayer,
-    const std::vector<std::vector<double>>& pixelVals
+    ConvolutionLayers& conv,
+    const std::vector<std::vector<double>>& pixels
 ) {
-    convLayer.get_feature_map().clear();
-    convLayer.get_pool_map().clear();
-    convLayer.get_output_feature_maps().clear();
-    convLayer.get_final_pool_maps().clear();
-    convLayer.get_raw_input_image() = pixelVals;
+    conv.get_feature_map().clear();
+    conv.get_pool_map().clear();
+    conv.get_output_feature_maps().clear();
+    conv.get_final_pool_maps().clear();
+    conv.get_raw_input_image() = pixels;
 
-    const auto& predefinedFilters = convLayer.get_all_predefined_filter();
-    for (size_t filterIdx = 0; filterIdx < predefinedFilters.size(); ++filterIdx) {
-        gridEntity featureMap = convLayer.apply_filter_universal(
-            convLayer.get_raw_input_image(),
-            predefinedFilters[filterIdx],
-            1
-        );
-        convLayer.get_feature_map().push_back(featureMap);
+    // Layer 1: hardcoded edge filters
+    for (const auto& filter : conv.get_all_predefined_filter()) {
+        gridEntity fm = conv.apply_filter_universal(conv.get_raw_input_image(), filter, 1);
+        conv.activate_feature_map_using_RELU_universal(fm);
+        conv.get_feature_map().push_back(fm);
     }
+    for (const auto& fm : conv.get_feature_map())
+        conv.get_pool_map().push_back(conv.apply_pooling_univeral(fm, 2));
 
-    for (gridEntity& featureMap : convLayer.get_feature_map()) {
-        convLayer.activate_feature_map_using_RELU_universal(featureMap);
+    conv.get_input_channels() = conv.get_pool_map();
+
+    // Layer 2: trainable filters
+    std::vector<gridEntity> layer2Maps;
+    for (const auto& trainingFilter : conv.get_all_training_filter()) {
+        std::vector<gridEntity> perChannel;
+        for (size_t ci = 0; ci < conv.get_input_channels().size(); ci++)
+            perChannel.push_back(conv.apply_filter_universal(conv.get_input_channels()[ci], trainingFilter[ci], 1));
+        gridEntity summed = CNN_Matrix::Matrix::sum_of_all_matrix_elements(perChannel);
+        conv.activate_feature_map_using_RELU_universal(summed);
+        layer2Maps.push_back(summed);
     }
+    conv.get_output_feature_maps() = layer2Maps;
 
-    for (size_t i = 0; i < convLayer.get_feature_map().size(); ++i) {
-        gridEntity pooledMap = convLayer.apply_pooling_univeral(
-            convLayer.get_feature_map()[i],
-            2
-        );
-        convLayer.get_pool_map().push_back(pooledMap);
-    }
+    for (const auto& fm : conv.get_output_feature_maps())
+        conv.get_final_pool_maps().push_back(conv.apply_pooling_univeral(fm, 2));
 
-    convLayer.get_input_channels() = convLayer.get_pool_map();
-
-    std::vector<gridEntity> finalFilterMaps;
-    const auto& trainingFilters = convLayer.get_all_training_filter();
-
-    for (size_t filterIdx = 0; filterIdx < trainingFilters.size(); ++filterIdx) {
-        std::vector<gridEntity> individualFilterMaps;
-        const auto& inputChannels = convLayer.get_input_channels();
-
-        for (size_t channelIdx = 0; channelIdx < inputChannels.size(); ++channelIdx) {
-            gridEntity filterMap = convLayer.apply_filter_universal(
-                inputChannels[channelIdx],
-                trainingFilters[filterIdx][channelIdx],
-                1
-            );
-            individualFilterMaps.push_back(filterMap);
-        }
-
-        gridEntity summedFilterMap = CNN_Matrix::Matrix::sum_of_all_matrix_elements(individualFilterMaps);
-        finalFilterMaps.push_back(summedFilterMap);
-        convLayer.activate_feature_map_using_RELU_universal(finalFilterMaps.back());
-    }
-
-    convLayer.get_output_feature_maps() = finalFilterMaps;
-
-    for (size_t i = 0; i < convLayer.get_output_feature_maps().size(); ++i) {
-        gridEntity pooledMap = convLayer.apply_pooling_univeral(
-            convLayer.get_output_feature_maps()[i],
-            2
-        );
-        convLayer.get_final_pool_maps().push_back(pooledMap);
-    }
-
-    std::vector<double> flattenedVector;
-    for (const auto& pooledMatrix : convLayer.get_final_pool_maps()) {
-        for (const auto& row : pooledMatrix) {
-            flattenedVector.insert(flattenedVector.end(), row.begin(), row.end());
-        }
-    }
-
-    return flattenedVector;
+    // Flatten
+    std::vector<double> flat;
+    for (const auto& pm : conv.get_final_pool_maps())
+        for (const auto& row : pm)
+            flat.insert(flat.end(), row.begin(), row.end());
+    return flat;
 }
 
-int main()
-{
-    // =========================================================================
-    // SECTION 1: Load MNIST Dataset
-    // =========================================================================
-
+// =========================================================================
+// TRAIN MODE
+// =========================================================================
+void runTraining(const std::string& modelPath) {
     std::cout << "Loading MNIST training data..." << std::endl;
-    std::vector<MNISTSample> trainingData = loadMNISTFromCSV("resource/mnist_train.csv", 500);
+    std::vector<MNISTSample> trainData = loadMNISTFromCSV("resource/mnist_train.csv", 5000);
+    if (trainData.empty()) { std::cerr << "No training data. Exiting.\n"; return; }
 
-    if (trainingData.empty()) {
-        std::cerr << "Failed to load training data. Exiting." << std::endl;
-        return -1;
-    }
+    std::vector<std::vector<double>> dummy(IMAGE_SIZE, std::vector<double>(IMAGE_SIZE, 0.0));
+    ConvolutionLayers conv(dummy);
 
-    // =========================================================================
-    // SECTION 2: Initialize Convolutional Layers
-    // =========================================================================
+    std::vector<double> sample = processImageThroughConvLayers(conv, trainData[0].pixels);
+    int inputSize = (int)sample.size();
+    std::cout << "Flattened feature vector size: " << inputSize << std::endl;
 
-    std::vector<std::vector<double>> dummyImage(28, std::vector<double>(28, 0.0));
-    ConvolutionLayers convLayer(dummyImage);
+    const double nnLR = 0.001;
+    const double convLR = 0.00001;
+    std::vector<int> topology = { inputSize, 256, NUM_CLASSES };
+    DeepNetwork net(topology, nnLR);
 
-    // =========================================================================
-    // SECTION 3: Calculate Network Input Size
-    // =========================================================================
+    const int EPOCHS = 15;
+    const int outputIdx = (int)topology.size() - 1;
+    double currentConvLR = convLR;
 
-    std::vector<double> sampleFlattened = processImageThroughConvLayers(convLayer, trainingData[0].pixels);
-    int inputSize = sampleFlattened.size();
-
-    std::cout << "Calculated input size: " << inputSize << std::endl;
-
-    // =========================================================================
-    // SECTION 4: Initialize Deep Neural Network
-    // =========================================================================
-
-    const double neuralNetLearningRate = 0.1;
-    const double convolutionLearningRate = 0.0001;
-
-    std::vector<int> networkTopology = {
-        inputSize,
-        256,
-        10
-    };
-
-    double currentNNLearningRate = neuralNetLearningRate;
-    double currentConvLearningRate = convolutionLearningRate;
-
-    DeepNetwork neuralNetwork(networkTopology, neuralNetLearningRate);
-
-    // =========================================================================
-    // SECTION 5: Training Loop
-    // =========================================================================
-
-    const int totalEpochs = 10;
-    const int batchSize = 16;
-
-    for (int epoch = 0; epoch < totalEpochs; ++epoch) {
-
-        if ((epoch + 1) % 3 == 0) {
-            currentNNLearningRate *= 0.9;
-            currentConvLearningRate *= 0.9;
-            std::cout << "Learning rate decayed to: NN=" << currentNNLearningRate
-                << ", Conv=" << currentConvLearningRate << std::endl;
+    for (int epoch = 0; epoch < EPOCHS; epoch++) {
+        if (epoch > 0 && epoch % 5 == 0) {
+            currentConvLR *= 0.5;
+            std::cout << "  [LR Decay] Conv=" << currentConvLR << std::endl;
         }
-
-        std::cout << "\n========================================" << std::endl;
-        std::cout << "Training Epoch " << epoch + 1 << "/" << totalEpochs << std::endl;
-        std::cout << "========================================" << std::endl;
 
         double epochError = 0.0;
-        int correct = 0;
+        int    correct = 0;
+        std::cout << "\n==============================\n";
+        std::cout << "Epoch " << (epoch + 1) << "/" << EPOCHS << "\n";
+        std::cout << "==============================" << std::endl;
 
-        for (size_t i = 0; i < trainingData.size(); ++i) {
-            MNISTSample& sample = trainingData[i];
-            std::vector<double> target = createOneHotTarget(sample.label);
+        for (size_t i = 0; i < trainData.size(); i++) {
+            MNISTSample& s = trainData[i];
+            std::vector<double> target = createOneHot(s.label);
 
-            // ================================================================
-            // Forward Pass Through Conv Layers
-            // ================================================================
+            // Forward
+            std::vector<double> flat = processImageThroughConvLayers(conv, s.pixels);
+            net.setCurrentInput(flat);
+            net.setTarget(target);
+            net.forwardPropogation();
+            net.setErrors();
+            epochError += net.getGlobalError();
 
-            std::vector<double> flattenedVector = processImageThroughConvLayers(convLayer, sample.pixels);
-
-            // ================================================================
-            // Forward Pass Through Neural Network
-            // ================================================================
-
-            neuralNetwork.setCurrentInput(flattenedVector);
-            neuralNetwork.setTarget(target);
-            neuralNetwork.forwardPropogation();
-            neuralNetwork.setErrors();
-
-            double sampleError = neuralNetwork.getGlobalError();
-            epochError += sampleError;
-
-            int predictedLabel = 0;
-            double maxProb = 0.0;
-            for (int j = 0; j < 10; ++j) {
-                double prob = neuralNetwork.GetLayer(2)->getNeuron(j)->getActivatedVal();
-                if (prob > maxProb) {
-                    maxProb = prob;
-                    predictedLabel = j;
-                }
+            // Accuracy check
+            int predLabel = 0; double maxP = 0.0;
+            for (int j = 0; j < NUM_CLASSES; j++) {
+                double p = net.GetLayer(outputIdx)->getNeuron(j)->getActivatedVal();
+                if (p > maxP) { maxP = p; predLabel = j; }
             }
-            if (predictedLabel == sample.label) {
-                correct++;
-            }
+            if (predLabel == s.label) correct++;
 
-            // ================================================================
-            // Backward Pass (FIXED VERSION)
-            // ================================================================
+            // Backward — FC
+            net.gardientComputation();
+            auto gradMats = net.GetGradientMatrices();
+            net.updateWeights();
 
-            neuralNetwork.gardientComputation();
-            std::vector<GeneralMatrix::Matrix*> gradientMatrices = neuralNetwork.GetGradientMatrices();
-            neuralNetwork.updateWeights();
+            // Backward — Conv layer 2
+            int nCh = (int)conv.get_final_pool_maps().size();
+            int gH = (int)conv.get_final_pool_maps()[0].size();
+            int gW = (int)conv.get_final_pool_maps()[0][0].size();
 
-            const int numChannels = convLayer.get_final_pool_maps().size();
-            const int filterHeight = convLayer.get_final_pool_maps()[0].size();
-            const int filterWidth = convLayer.get_final_pool_maps()[0][0].size();
-
-            GeneralMatrix::Matrix* lastGradient = gradientMatrices.back();
-            GeneralMatrix::Matrix* transposedWeights = neuralNetwork.GetWeightMatrices()[0]->tranpose();
-            GeneralMatrix::Matrix* requiredGradients = *lastGradient * transposedWeights;
+            GeneralMatrix::Matrix* lastGrad = gradMats.back();
+            GeneralMatrix::Matrix* transposedW = net.GetWeightMatrices()[0]->tranpose();
+            GeneralMatrix::Matrix* reshapedGrads = *lastGrad * transposedW;
 
             volumetricEntity pooledGradients;
-            int currentColumn = 0;
-
-            for (int channelIdx = 0; channelIdx < numChannels; ++channelIdx) {
-                gridEntity channelGradient;
-                for (int row = 0; row < filterHeight; ++row) {
-                    std::vector<double> rowGradient;
-                    for (int col = 0; col < filterWidth; ++col) {
-                        double gradientValue = requiredGradients->getVal(0, currentColumn);
-                        rowGradient.push_back(gradientValue);
-                        ++currentColumn;
-                    }
-                    channelGradient.push_back(rowGradient);
+            int col = 0;
+            for (int ch = 0; ch < nCh; ch++) {
+                gridEntity chGrad;
+                for (int r = 0; r < gH; r++) {
+                    std::vector<double> rowG;
+                    for (int c = 0; c < gW; c++)
+                        rowG.push_back(reshapedGrads->getVal(0, col++));
+                    chGrad.push_back(rowG);
                 }
-                pooledGradients.push_back(channelGradient);
+                pooledGradients.push_back(chGrad);
             }
 
-            volumetricEntity unpooledGradients;
-            for (int channelIdx = 0; channelIdx < numChannels; ++channelIdx) {
-                gridEntity unpooledMap = convLayer.unpool_without_indices(
-                    pooledGradients[channelIdx],
-                    convLayer.get_output_feature_maps()[channelIdx],
-                    2, 2, 2
-                );
-                unpooledGradients.push_back(unpooledMap);
-            }
+            volumetricEntity unpooled;
+            for (int ch = 0; ch < nCh; ch++)
+                unpooled.push_back(conv.unpool_without_indices(
+                    pooledGradients[ch], conv.get_output_feature_maps()[ch], 2, 2, 2));
 
-            // CRITICAL FIX: Apply ReLU derivative before computing filter gradients
-            for (int channelIdx = 0; channelIdx < numChannels; ++channelIdx) {
-                convLayer.apply_relu_derivative(
-                    unpooledGradients[channelIdx],
-                    convLayer.get_output_feature_maps()[channelIdx]
-                );
-            }
+            for (int ch = 0; ch < nCh; ch++)
+                conv.apply_relu_derivative(unpooled[ch], conv.get_output_feature_maps()[ch]);
 
-            std::vector<gridEntity> inputChannelsForGradient = convLayer.get_input_channels();
-            std::vector<volumetricEntity> filterGradients = convLayer.compute_filter_gradients(
-                inputChannelsForGradient,
-                unpooledGradients,
-                1
-            );
+            auto filterGrads = conv.compute_filter_gradients(conv.get_input_channels(), unpooled, 1);
+            conv.update_filters_with_gradients(conv.get_all_training_filter(), filterGrads, currentConvLR);
 
-            if (i == 0 && epoch == 0) {
-                double maxGrad = 0.0, minGrad = 0.0, sumGrad = 0.0;
-                int count = 0;
+            delete transposedW;
+            delete reshapedGrads;
 
-                for (const auto& filterGrad : filterGradients) {
-                    for (const auto& channelGrad : filterGrad) {
-                        for (const auto& row : channelGrad) {
-                            for (double val : row) {
-                                maxGrad = std::max(maxGrad, val);
-                                minGrad = std::min(minGrad, val);
-                                sumGrad += val;
-                                count++;
-                            }
-                        }
-                    }
-                }
-
-                std::cout << "Gradient stats - Min: " << minGrad
-                    << ", Max: " << maxGrad
-                    << ", Avg: " << (sumGrad / count) << std::endl;
-            }
-
-            convLayer.update_filters_with_gradients(
-                convLayer.get_all_training_filter(),
-                filterGradients,
-                convolutionLearningRate
-            );
-
-            delete transposedWeights;
-            delete requiredGradients;
-
-            // ================================================================
-            // Progress Display
-            // ================================================================
-
-            if ((i + 1) % 50 == 0) {
-                double avgError = epochError / (i + 1);
-                double accuracy = (100.0 * correct) / (i + 1);
-                std::cout << "  Sample " << (i + 1) << "/" << trainingData.size()
-                    << " | Avg Error: " << avgError
-                    << " | Accuracy: " << accuracy << "%" << std::endl;
-            }
+            if ((i + 1) % 100 == 0)
+                std::cout << "  [" << (i + 1) << "/" << trainData.size() << "]"
+                << "  AvgLoss=" << (epochError / (i + 1))
+                << "  Acc=" << (100.0 * correct / (i + 1)) << "%" << std::endl;
         }
 
-        // ====================================================================
-        // Epoch Summary
-        // ====================================================================
+        std::cout << "\n  Epoch Summary | Loss=" << (epochError / trainData.size())
+            << " | Acc=" << (100.0 * correct / trainData.size()) << "%"
+            << " | " << correct << "/" << trainData.size() << " correct" << std::endl;
 
-        double avgEpochError = epochError / trainingData.size();
-        double epochAccuracy = (100.0 * correct) / trainingData.size();
-
-        std::cout << "\n--- Epoch " << (epoch + 1) << " Summary ---" << std::endl;
-        std::cout << "Average Error: " << avgEpochError << std::endl;
-        std::cout << "Accuracy: " << epochAccuracy << "%" << std::endl;
-        std::cout << "Correct: " << correct << "/" << trainingData.size() << std::endl;
-
-        if ((epoch + 1) % 3 == 0) {
-            currentNNLearningRate *= 0.9;
-            currentConvLearningRate *= 0.9;
-            std::cout << "Learning rate decayed to: NN=" << currentNNLearningRate
-                << ", Conv=" << currentConvLearningRate << std::endl;
-        }
+        // Checkpoint after every epoch
+        std::string ckpt = "checkpoint_epoch_" + std::to_string(epoch + 1) + ".bin";
+        ModelSerializer::save(ckpt, conv, net);
     }
 
-    std::cout << "\n========================================" << std::endl;
-    std::cout << "Training Complete!" << std::endl;
-    std::cout << "========================================" << std::endl;
+    ModelSerializer::save(modelPath, conv, net);
+    std::cout << "\nTraining complete. Model saved to: " << modelPath << std::endl;
+}
+
+// =========================================================================
+// EVALUATE MODE
+// =========================================================================
+void runEvaluation(const std::string& modelPath) {
+    std::cout << "Loading MNIST test data..." << std::endl;
+    std::vector<MNISTSample> testData = loadMNISTFromCSV("resource/mnist_test.csv", 1000);
+    if (testData.empty()) { std::cerr << "No test data. Exiting.\n"; return; }
+
+    std::vector<std::vector<double>> dummy(IMAGE_SIZE, std::vector<double>(IMAGE_SIZE, 0.0));
+    ConvolutionLayers conv(dummy);
+
+    std::vector<double> s = processImageThroughConvLayers(conv, testData[0].pixels);
+    int inputSize = (int)s.size();
+
+    std::vector<int> topology = { inputSize, 256, NUM_CLASSES };
+    DeepNetwork net(topology, 0.0);
+    ModelSerializer::load(modelPath, conv, net);
+
+    int correct = 0;
+    int outputIdx = (int)topology.size() - 1;
+
+    for (size_t i = 0; i < testData.size(); i++) {
+        std::vector<double> flat = processImageThroughConvLayers(conv, testData[i].pixels);
+        net.setCurrentInput(flat);
+        net.forwardPropogation();
+
+        int predLabel = 0; double maxP = 0.0;
+        for (int j = 0; j < NUM_CLASSES; j++) {
+            double p = net.GetLayer(outputIdx)->getNeuron(j)->getActivatedVal();
+            if (p > maxP) { maxP = p; predLabel = j; }
+        }
+        if (predLabel == testData[i].label) correct++;
+
+        if ((i + 1) % 100 == 0)
+            std::cout << "Evaluated " << (i + 1) << "/" << testData.size()
+            << " | Acc=" << (100.0 * correct / (i + 1)) << "%" << std::endl;
+    }
+
+    std::cout << "\nFinal Test Accuracy: "
+        << (100.0 * correct / testData.size()) << "%"
+        << " (" << correct << "/" << testData.size() << ")" << std::endl;
+}
+
+// =========================================================================
+// PREDICT MODE — single image inference
+// =========================================================================
+void runPredict(const std::string& modelPath, const std::string& imagePath) {
+    ImageInput img(imagePath, 0); // 0 = grayscale
+    std::vector<std::vector<double>> pixels = img.getMatrixifiedPixelValues();
+    if (pixels.empty()) { std::cerr << "Could not load image: " << imagePath << "\n"; return; }
+
+    std::vector<std::vector<double>> dummy(IMAGE_SIZE, std::vector<double>(IMAGE_SIZE, 0.0));
+    ConvolutionLayers conv(dummy);
+    std::vector<double> s = processImageThroughConvLayers(conv, dummy);
+    int inputSize = (int)s.size();
+
+    std::vector<int> topology = { inputSize, 256, NUM_CLASSES };
+    DeepNetwork net(topology, 0.0);
+    ModelSerializer::load(modelPath, conv, net);
+
+    std::vector<double> flat = processImageThroughConvLayers(conv, pixels);
+    net.setCurrentInput(flat);
+    net.forwardPropogation();
+
+    int outputIdx = (int)topology.size() - 1;
+    std::cout << "\nClass probabilities:" << std::endl;
+    int predLabel = 0; double maxP = 0.0;
+    for (int j = 0; j < NUM_CLASSES; j++) {
+        double p = net.GetLayer(outputIdx)->getNeuron(j)->getActivatedVal();
+        std::cout << "  " << j << ": " << (p * 100.0) << "%" << std::endl;
+        if (p > maxP) { maxP = p; predLabel = j; }
+    }
+    std::cout << "\nPredicted digit: " << predLabel
+        << "  (confidence: " << (maxP * 100.0) << "%)" << std::endl;
+}
+
+// =========================================================================
+// Entry point
+//
+//   ./cnn train   [model.bin]
+//   ./cnn eval    [model.bin]
+//   ./cnn predict <image.png> [model.bin]
+// =========================================================================
+int main(int argc, char* argv[]) {
+    if (argc < 2) {
+        std::cout << "Usage:\n"
+            << "  " << argv[0] << " train   [model_path]          — train and save\n"
+            << "  " << argv[0] << " eval    [model_path]          — evaluate on test set\n"
+            << "  " << argv[0] << " predict <image.png> [model]   — predict a single image\n";
+        return 1;
+    }
+
+    std::string mode = argv[1];
+    std::string modelPath = DEFAULT_MODEL_PATH;
+
+    if (mode == "train") {
+        if (argc >= 3) modelPath = argv[2];
+        runTraining(modelPath);
+
+    }
+    else if (mode == "eval") {
+        if (argc >= 3) modelPath = argv[2];
+        runEvaluation(modelPath);
+
+    }
+    else if (mode == "predict") {
+        if (argc < 3) { std::cerr << "predict mode requires an image path.\n"; return 1; }
+        std::string imagePath = argv[2];
+        if (argc >= 4) modelPath = argv[3];
+        runPredict(modelPath, imagePath);
+
+    }
+    else {
+        std::cerr << "Unknown mode: " << mode << std::endl;
+        return 1;
+    }
 
     return 0;
 }
